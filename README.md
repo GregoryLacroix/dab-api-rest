@@ -179,6 +179,11 @@ Clés : `name`, `email`, `password`, `confirm` (inscription) · `name`, `email`,
 
 ## Production
 
+**Dépannage en production**
+- *Console du navigateur : « l'en-tête CORS Access-Control-Allow-Origin est manquant »* (même avec un code 200) : l'API ne connaît pas l'adresse du site, donc `CORS_ALLOW_ORIGIN` n'a pas la valeur de production. Le plus souvent `.env.local` n'existe pas sur le serveur, ou `.env.prod` n'a pas été envoyé (fichier caché). Vérifiez avec `php bin/console debug:dotenv CORS_ALLOW_ORIGIN` : la valeur affichée doit être `^https://dab\.gregory-lacroix-pf\.com$`. Sinon complétez `.env.local` (modèle : `.env.local.prod.example`), puis `php bin/console cache:clear --env=prod`.
+- Test sans navigateur : `curl -i -H "Origin: https://dab.gregory-lacroix-pf.com" https://dab.api.gregory-lacroix-pf.com/api/auth/oauth/providers` doit renvoyer une ligne `access-control-allow-origin: https://dab.gregory-lacroix-pf.com`.
+- *Erreur 500 sur `/api/products`, `/api/slider`, `/api/content` alors que `/api/auth/oauth/providers` répond 200* : ces routes lisent la base de données, `oauth/providers` non. La base est donc injoignable ou vide : vérifiez `DATABASE_URL`, créez les tables (`php bin/console doctrine:schema:update --force --env=prod`) et regardez `var/log/prod.log` (le dossier `var/` doit être accessible en écriture).
+
 **Adresses de ce déploiement** : site `https://dab.gregory-lacroix-pf.com`, API `https://dab.api.gregory-lacroix-pf.com`.
 - `.env.prod` (fourni) contient `FRONTEND_URL`, `API_PUBLIC_URL` et `CORS_ALLOW_ORIGIN` ; `.env.local.prod.example` est le modèle du fichier **`.env.local` à créer sur le serveur** (`APP_ENV=prod`, `APP_SECRET`, base de données, e-mails, clés Stripe et Google/Facebook). Ce `.env.local` ne doit jamais être publié.
 - À déclarer chez les services externes :
