@@ -1,0 +1,34 @@
+# Hébergement Apache / LiteSpeed (PlanetHoster…) : toutes les adresses /api/... passent par index.php (contrôleur frontal Symfony).
+# Le « document root » (dossier racine) du sous-domaine de l'API doit être le dossier public/ de ce projet.
+DirectoryIndex index.php
+
+<IfModule mod_negotiation.c>
+    Options -MultiViews
+</IfModule>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Détermine automatiquement le préfixe de l'adresse (utile si l'API n'est pas à la racine du domaine)
+    RewriteCond %{REQUEST_URI}::$0 ^(/.+)/(.*)::\2$
+    RewriteRule .* - [E=BASE:%1]
+
+    # IMPORTANT : l'API s'authentifie par l'en-tête « Authorization: Bearer … ». Certains hébergeurs l'effacent avant PHP :
+    # cette règle le remet, sans quoi toute connexion échoue en 401.
+    RewriteCond %{HTTP:Authorization} .+
+    RewriteRule ^ - [E=HTTP_AUTHORIZATION:%0]
+
+    # /index.php/… est redirigé vers l'adresse propre
+    RewriteCond %{ENV:REDIRECT_STATUS} =""
+    RewriteRule ^index\.php(?:/(.*)|$) %{ENV:BASE}/$1 [R=301,L]
+
+    # Tout ce qui n'est pas un vrai fichier (ex. /uploads/…) est confié à Symfony
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ %{ENV:BASE}/index.php [L]
+</IfModule>
+
+<IfModule !mod_rewrite.c>
+    <IfModule mod_alias.c>
+        RedirectMatch 307 ^/$ /index.php/
+    </IfModule>
+</IfModule>
