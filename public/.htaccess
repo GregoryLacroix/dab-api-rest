@@ -1,58 +1,34 @@
-# =====================================================================================================================
-# .htaccess de l'API (Symfony) : hébergement Apache / LiteSpeed (PlanetHoster…)
-# À placer dans le dossier public/ de l'API, qui doit être la racine du sous-domaine de l'API.
-# Chaque bloc est protégé par <IfModule> : si le serveur ne connaît pas un module, le bloc est ignoré.
-# =====================================================================================================================
-
+# Hébergement Apache / LiteSpeed (PlanetHoster…) : toutes les adresses /api/... passent par index.php (contrôleur frontal Symfony).
+# Le « document root » (dossier racine) du sous-domaine de l'API doit être le dossier public/ de ce projet.
 DirectoryIndex index.php
 
 <IfModule mod_negotiation.c>
-  Options -MultiViews
+    Options -MultiViews
 </IfModule>
 
-# --- 1. Toutes les adresses passent par Symfony (index.php) --------------------------------------------------------
 <IfModule mod_rewrite.c>
-  RewriteEngine On
+    RewriteEngine On
 
-  # Détermine automatiquement le préfixe de l'adresse (utile si l'API n'est pas à la racine du domaine)
-  RewriteCond %{REQUEST_URI}::$0 ^(/.+)/(.*)::\2$
-  RewriteRule .* - [E=BASE:%1]
+    # Détermine automatiquement le préfixe de l'adresse (utile si l'API n'est pas à la racine du domaine)
+    RewriteCond %{REQUEST_URI}::$0 ^(/.+)/(.*)::\2$
+    RewriteRule .* - [E=BASE:%1]
 
-  # IMPORTANT : l'API s'authentifie par l'en-tête « Authorization: Bearer … ». Certains hébergeurs l'effacent avant PHP :
-  # cette règle le remet, sans quoi toute connexion échoue en 401.
-  RewriteCond %{HTTP:Authorization} .+
-  RewriteRule ^ - [E=HTTP_AUTHORIZATION:%0]
+    # IMPORTANT : l'API s'authentifie par l'en-tête « Authorization: Bearer … ». Certains hébergeurs l'effacent avant PHP :
+    # cette règle le remet, sans quoi toute connexion échoue en 401.
+    RewriteCond %{HTTP:Authorization} .+
+    RewriteRule ^ - [E=HTTP_AUTHORIZATION:%0]
 
-  # /index.php/… est redirigé vers l'adresse propre
-  RewriteCond %{ENV:REDIRECT_STATUS} =""
-  RewriteRule ^index\.php(?:/(.*)|$) %{ENV:BASE}/$1 [R=301,L]
+    # /index.php/… est redirigé vers l'adresse propre
+    RewriteCond %{ENV:REDIRECT_STATUS} =""
+    RewriteRule ^index\.php(?:/(.*)|$) %{ENV:BASE}/$1 [R=301,L]
 
-  # Tout ce qui n'est pas un vrai fichier (ex. /uploads/…) est confié à Symfony
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteRule ^ %{ENV:BASE}/index.php [L]
+    # Tout ce qui n'est pas un vrai fichier (ex. /uploads/…) est confié à Symfony
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ %{ENV:BASE}/index.php [L]
 </IfModule>
 
 <IfModule !mod_rewrite.c>
-  <IfModule mod_alias.c>
-    RedirectMatch 307 ^/$ /index.php/
-  </IfModule>
-</IfModule>
-
-# --- 2. Protection de base ---------------------------------------------------------------------------------------------
-<IfModule mod_headers.c>
-  Header always set X-Content-Type-Options "nosniff"
-</IfModule>
-
-# --- 3. Pare-feu du serveur (ModSecurity) : retour de la connexion Google ---------------------------------------------
-# Au retour de Google, l'adresse /api/auth/oauth/google/callback contient des paramètres qui sont eux-mêmes des adresses web
-# (iss=https://accounts.google.com, scope=https://www.googleapis.com/…). Certains pare-feu les prennent pour une attaque et
-# répondent « 403 Forbidden » avant même que PHP ne s'exécute.
-# Ce bloc désactive le pare-feu pour ce sous-domaine. C'est un dernier recours : demandez de préférence au support de
-# l'hébergeur une exception pour le chemin /api/auth/oauth/ (voir README). Si le site passe en erreur 500 après l'ajout de ce
-# bloc, c'est que l'hébergeur n'autorise pas cette directive ici : supprimez simplement ces lignes.
-<IfModule mod_security2.c>
-  SecRuleEngine Off
-</IfModule>
-<IfModule mod_security.c>
-  SecRuleEngine Off
+    <IfModule mod_alias.c>
+        RedirectMatch 307 ^/$ /index.php/
+    </IfModule>
 </IfModule>
