@@ -184,6 +184,9 @@ Clés : `name`, `email`, `password`, `confirm` (inscription) · `name`, `email`,
 - Test sans navigateur : `curl -i -H "Origin: https://dab.gregory-lacroix-pf.com" https://dab.api.gregory-lacroix-pf.com/api/auth/oauth/providers` doit renvoyer une ligne `access-control-allow-origin: https://dab.gregory-lacroix-pf.com`.
 - *Erreur 500 sur `/api/products`, `/api/slider`, `/api/content` alors que `/api/auth/oauth/providers` répond 200* : ces routes lisent la base de données, `oauth/providers` non. La base est donc injoignable ou vide : vérifiez `DATABASE_URL`, créez les tables (`php bin/console doctrine:schema:update --force --env=prod`) et regardez `var/log/prod.log` (le dossier `var/` doit être accessible en écriture).
 
+- *Erreur 500 sur TOUTES les routes (page HTML grise en `iso-8859-1`, signée LiteSpeed)* : c'est le serveur, pas Symfony : une ligne du `public/.htaccess` est refusée par l'hébergeur (par exemple `SecRuleEngine Off`, interdit sur PlanetHoster). Retirez la dernière ligne ajoutée, ou renommez temporairement `.htaccess` pour confirmer.
+- *403 « Forbidden » au retour de Google* (`…/google/callback?…&iss=https://…`) : pare-feu du serveur (ModSecurity) qui prend les adresses web des paramètres pour une attaque. `SecRuleEngine Off` dans le `.htaccess` est refusé par PlanetHoster : il faut demander au support une exception pour le chemin `/api/auth/oauth/`.
+
 **Adresses de ce déploiement** : site `https://dab.gregory-lacroix-pf.com`, API `https://dab.api.gregory-lacroix-pf.com`.
 - `.env.prod` (fourni) contient `FRONTEND_URL`, `API_PUBLIC_URL` et `CORS_ALLOW_ORIGIN` ; `.env.local.prod.example` est le modèle du fichier **`.env.local` à créer sur le serveur** (`APP_ENV=prod`, `APP_SECRET`, base de données, e-mails, clés Stripe et Google/Facebook). Ce `.env.local` ne doit jamais être publié.
 - À déclarer chez les services externes :

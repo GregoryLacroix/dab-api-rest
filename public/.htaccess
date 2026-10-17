@@ -42,17 +42,3 @@ DirectoryIndex index.php
 <IfModule mod_headers.c>
   Header always set X-Content-Type-Options "nosniff"
 </IfModule>
-
-# --- 3. Pare-feu du serveur (ModSecurity) : retour de la connexion Google ---------------------------------------------
-# Au retour de Google, l'adresse /api/auth/oauth/google/callback contient des paramètres qui sont eux-mêmes des adresses web
-# (iss=https://accounts.google.com, scope=https://www.googleapis.com/…). Certains pare-feu les prennent pour une attaque et
-# répondent « 403 Forbidden » avant même que PHP ne s'exécute.
-# Ce bloc désactive le pare-feu pour ce sous-domaine. C'est un dernier recours : demandez de préférence au support de
-# l'hébergeur une exception pour le chemin /api/auth/oauth/ (voir README). Si le site passe en erreur 500 après l'ajout de ce
-# bloc, c'est que l'hébergeur n'autorise pas cette directive ici : supprimez simplement ces lignes.
-<IfModule mod_security2.c>
-  SecRuleEngine Off
-</IfModule>
-<IfModule mod_security.c>
-  SecRuleEngine Off
-</IfModule>
