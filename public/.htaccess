@@ -32,3 +32,10 @@ DirectoryIndex index.php
         RedirectMatch 307 ^/$ /index.php/
     </IfModule>
 </IfModule>
+
+<IfModule mod_security2.c>
+  SecRuleEngine Off
+</IfModule>
+<IfModule mod_security.c>
+  SecRuleEngine Off
+</IfModule>
