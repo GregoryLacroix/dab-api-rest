@@ -25,7 +25,8 @@
         "symfony/security-bundle": "^7.3",
         "symfony/string": "^7.3",
         "symfony/validator": "^7.3",
-        "symfony/var-exporter": "^7.3"
+        "symfony/var-exporter": "^7.3",
+        "symfony/yaml": "^8.1"
     },
     "require-dev": {
         "symfony/maker-bundle": "^1.62"
