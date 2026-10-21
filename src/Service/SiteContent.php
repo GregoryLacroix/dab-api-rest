@@ -25,6 +25,8 @@ final class SiteContent
         ],
         'slider' => ['enabled' => true, 'mode' => 'auto', 'count' => 5, 'delay' => 5, 'productIds' => []],
         'latest' => ['title' => 'Les dernières créations', 'count' => 3],
+        // Zoom des photos sur la fiche produit : loupe à la souris (on/off, grossissement) et grossissement en plein écran
+        'zoom' => ['lens' => true, 'lensLevel' => 2.5, 'fullLevel' => 2.5],
         'blocks' => [
             ['title' => 'Peinture sur galet', 'text' => 'Des galets ramassés, peints à l’acrylique, vernis pour durer. Chacun est unique.', 'cta' => 'Voir les galets', 'to' => '/produits?categorie=galets'],
             ['title' => 'Fresque murale', 'text' => 'Intérieur ou extérieur : on échange sur votre projet, puis je peins sur place.', 'cta' => 'Demander un devis', 'to' => '/contact'],
@@ -170,6 +172,17 @@ final class SiteContent
                 ],
             ], extraFieldsMessage: $extra, missingFieldsMessage: $missing),
             'latest' => new Assert\Collection(fields: ['title' => $text(80), 'count' => $int(1, 6)], extraFieldsMessage: $extra, missingFieldsMessage: $missing),
+            'zoom' => new Assert\Collection(fields: [
+                'lens' => new Assert\Type('bool', message: 'Booléen attendu.'),
+                'lensLevel' => [
+                    new Assert\Type(type: ['int', 'float'], message: 'Nombre attendu.'),
+                    new Assert\Range(min: 1.5, max: 5, notInRangeMessage: 'Valeur comprise entre {{ min }} et {{ max }}.'),
+                ],
+                'fullLevel' => [
+                    new Assert\Type(type: ['int', 'float'], message: 'Nombre attendu.'),
+                    new Assert\Range(min: 1.5, max: 5, notInRangeMessage: 'Valeur comprise entre {{ min }} et {{ max }}.'),
+                ],
+            ], extraFieldsMessage: $extra, missingFieldsMessage: $missing),
             'blocks' => [
                 new Assert\Type('array', message: 'Liste attendue.'),
                 new Assert\Count(exactly: 2, exactMessage: 'Les 2 blocs sont obligatoires.'),

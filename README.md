@@ -84,6 +84,9 @@ Connexion limitée à 5 essais / 15 min.
 Listes : `{ "data": [...], "meta": { "page", "perPage", "total", "pageCount" } }` (`perPage` de 1 à 100).
 Les statuts de commande : `en attente`, `payée`, `expédiée`, `livrée`, `annulée`.
 
+## Zoom des photos (réglage)
+Le contenu du site (`GET/PUT /api/content`) contient un bloc `zoom` : `{ "lens": true, "lensLevel": 2.5, "fullLevel": 2.5 }` (loupe à la souris on/off, grossissement de la loupe et grossissement en plein écran, de 1,5 à 5). Il se règle dans le back-office, page *Contenu du site*. Un contenu enregistré avant cette version reçoit automatiquement ces valeurs par défaut.
+
 ## Factures (PDF)
 
 Chaque commande **payée** (statut payée, expédiée ou livrée, non remboursée) a une facture PDF, téléchargeable depuis *Mon compte* (côté client) et depuis la page *Commandes* du back-office (administrateur). Elle est générée à la demande avec la bibliothèque FPDF (`composer install`, extension PHP `mbstring`) : rien n'est stocké.
