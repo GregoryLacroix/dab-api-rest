@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\ContactMessage;
 use App\Entity\Order;
+use App\Entity\OrderStatus;
 use App\Entity\User;
 use App\Repository\ApiTokenRepository;
 use App\Repository\ContactMessageRepository;
@@ -31,6 +32,22 @@ final class AccountController extends ApiController
         private readonly UserPasswordHasherInterface $hasher,
         private readonly OAuthIdentityRepository $identities,
     ) {
+    }
+
+    // « Mon compte » : historique des commandes de la personne (commandes liées au compte ou passées avec la même adresse e-mail).
+    // Les paiements en ligne abandonnés (jamais payés, annulés) sont masqués : ce ne sont pas de vraies commandes.
+    #[Route('/orders', name: 'api_account_orders', methods: ['GET'])]
+    #[IsGranted('IS_AUTHENTICATED_FULLY')]
+    public function myOrders(): JsonResponse
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+        $real = array_filter(
+            $this->orders->findForPerson($user),
+            static fn (Order $o) => !($o->getStatus() === OrderStatus::Cancelled && $o->getPaidAt() === null && $o->getStripeSessionId() !== null),
+        );
+
+        return new JsonResponse(['items' => array_map(fn (Order $o) => $o->toArray(), array_values($real))], 200, ['Cache-Control' => 'no-store']);
     }
 
     // Copie de toutes les données liées à la personne (compte, commandes, messages)

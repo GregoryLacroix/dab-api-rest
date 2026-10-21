@@ -23,6 +23,7 @@ final class PaymentService
         private readonly OrderRepository $orders,
         private readonly StripeGateway $stripe,
         private readonly AppMailer $mailer,
+        private readonly InvoiceService $invoices,
         private readonly LoggerInterface $logger,
         #[Autowire('%env(CONTACT_EMAIL)%')] private readonly string $shopEmail,
     ) {
@@ -129,6 +130,7 @@ final class PaymentService
             $order->setTotalCents($paid);
         }
         $this->em->flush();
+        $this->invoices->ensureNumber($order); // numéro de facture attribué au moment du paiement (ordre chronologique)
 
         $this->mailer->sendOrderConfirmation($order);
         $this->mailer->sendNewOrderNotification($order, $this->shopEmail);

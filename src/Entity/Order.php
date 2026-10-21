@@ -54,6 +54,13 @@ class Order
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $refundedAt = null;
 
+    // Facture : numéro unique et continu (FA-2026-0001), attribué au paiement (ou à la première demande pour les anciennes commandes)
+    #[ORM\Column(length: 30, nullable: true, unique: true)]
+    private ?string $invoiceNumber = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $invoicedAt = null;
+
     /** @var array{name: ?string, line1: ?string, line2: ?string, postalCode: ?string, city: ?string, state: ?string, country: ?string}|null */
     #[ORM\Column(type: Types::JSON, nullable: true)]
     private ?array $shippingAddress = null;
@@ -86,6 +93,14 @@ class Order
     public function setPaidAt(?\DateTimeImmutable $at): static { $this->paidAt = $at; return $this; }
     public function getRefundedAt(): ?\DateTimeImmutable { return $this->refundedAt; }
     public function setRefundedAt(?\DateTimeImmutable $at): static { $this->refundedAt = $at; return $this; }
+    public function getInvoiceNumber(): ?string { return $this->invoiceNumber; }
+    public function getInvoicedAt(): ?\DateTimeImmutable { return $this->invoicedAt; }
+    public function setInvoice(string $number, \DateTimeImmutable $at): static { $this->invoiceNumber = $number; $this->invoicedAt = $at; return $this; }
+    /** Une facture existe pour une commande payée (et non remboursée / annulée) */
+    public function isInvoiceable(): bool
+    {
+        return \in_array($this->status, [OrderStatus::Paid, OrderStatus::Shipped, OrderStatus::Delivered], true) && $this->refundedAt === null;
+    }
     public function getShippingAddress(): ?array { return $this->shippingAddress; }
     public function setShippingAddress(?array $address): static { $this->shippingAddress = $address; return $this; }
 
@@ -106,6 +121,7 @@ class Order
                 'refundedAt' => $this->refundedAt?->format(\DATE_ATOM),
             ],
             'shipping' => $this->shippingAddress,
+            'invoice' => ['available' => $this->isInvoiceable(), 'number' => $this->invoiceNumber],
         ];
     }
 }

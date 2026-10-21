@@ -8,13 +8,17 @@ use App\Entity\OrderStatus;
 use App\Entity\User;
 use App\Repository\OrderRepository;
 use App\Service\ApiValidator;
+use App\Service\InvoiceService;
 use App\Service\OrderService;
 use App\Service\PaymentService;
 use App\Service\ValidationFailedException;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\HttpFoundation\HeaderUtils;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
@@ -28,6 +32,7 @@ final class OrderController extends ApiController
         private readonly OrderRepository $orders,
         private readonly OrderService $service,
         private readonly PaymentService $payments,
+        private readonly InvoiceService $invoices,
         private readonly ApiValidator $validator,
         #[Autowire(service: 'limiter.order')] private readonly RateLimiterFactory $orderLimiter,
     ) {
@@ -98,6 +103,35 @@ final class OrderController extends ApiController
         $this->payments->refund($order);
 
         return new JsonResponse($order->toArray());
+    }
+
+    // Facture PDF d'une commande payée : réservée à la personne concernée (compte lié, ou même adresse e-mail vérifiée) et aux administrateurs.
+    // Une commande qui n'est pas la sienne répond « introuvable » (on ne révèle pas son existence).
+    #[Route('/{ref}/invoice', name: 'api_orders_invoice', requirements: ['ref' => 'CMD-\d+'], methods: ['GET'])]
+    #[IsGranted('IS_AUTHENTICATED_FULLY')]
+    public function invoice(string $ref): Response
+    {
+        $order = $this->find($ref);
+        $user = $this->getUser();
+        $owner = $user instanceof User && (
+            $order->getUser()?->getId() === $user->getId()
+            || ($user->isVerified() && mb_strtolower($order->getCustomerEmail()) === mb_strtolower($user->getEmail()))
+        );
+        if (!$owner && !$this->isGranted('ROLE_ADMIN')) {
+            throw new NotFoundHttpException();
+        }
+        if (!$order->isInvoiceable()) {
+            throw new ConflictHttpException('Aucune facture n’est disponible pour cette commande (non payée, annulée ou remboursée).');
+        }
+
+        $pdf = $this->invoices->render($order);
+
+        return new Response($pdf, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => HeaderUtils::makeDisposition(HeaderUtils::DISPOSITION_ATTACHMENT, $this->invoices->fileName($order)),
+            'Cache-Control' => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     private function find(string $ref): Order

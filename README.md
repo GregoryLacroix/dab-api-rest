@@ -63,6 +63,8 @@ Connexion limitée à 5 essais / 15 min.
 | GET | `/api/auth/oauth/providers` | public | Fournisseurs de connexion configurés `{ providers: [{ id, label }] }` (les boutons du site en dépendent) |
 | GET | `/api/auth/oauth/{google\|facebook}/start?lang=fr\|en` | public | Redirige le navigateur vers Google / Facebook |
 | GET | `/api/auth/oauth/{google\|facebook}/callback` | fournisseur | Retour du fournisseur, puis redirection vers le React : `/connexion/retour#token=…` ou `/connexion?oauth=<raison>` |
+| GET | `/api/auth/me/orders` | Connecté | Mes commandes (liées au compte ou passées avec mon adresse e-mail), sans les paiements abandonnés |
+| GET | `/api/orders/{CMD-1001}/invoice` | Connecté (propriétaire ou admin) | Facture PDF d'une commande payée |
 | POST | `/api/payments/webhook` | Stripe (signature) | Confirmation de paiement, expiration, remboursement |
 | POST | `/api/orders/{CMD-1001}/refund` | Admin | Remboursement total d'une commande payée en ligne |
 | GET | `/api/orders` | Admin | Commandes : `?status=payée&q=martin&page=1&perPage=10` |
@@ -81,6 +83,14 @@ Connexion limitée à 5 essais / 15 min.
 
 Listes : `{ "data": [...], "meta": { "page", "perPage", "total", "pageCount" } }` (`perPage` de 1 à 100).
 Les statuts de commande : `en attente`, `payée`, `expédiée`, `livrée`, `annulée`.
+
+## Factures (PDF)
+
+Chaque commande **payée** (statut payée, expédiée ou livrée, non remboursée) a une facture PDF, téléchargeable depuis *Mon compte* (côté client) et depuis la page *Commandes* du back-office (administrateur). Elle est générée à la demande avec la bibliothèque FPDF (`composer install`, extension PHP `mbstring`) : rien n'est stocké.
+- **Numérotation** : `FA-2026-0001`, continue sans trou, une série par année. Le numéro est attribué à la confirmation du paiement Stripe (jamais pour une commande abandonnée) ; pour une commande passée « payée » à la main, au premier téléchargement. Après mise à jour : `php bin/console doctrine:schema:update --force` (colonnes `invoice_number`, `invoiced_at`).
+- **Contenu** : le vendeur vient de *Contenu du site → Informations légales* du back-office (raison sociale, forme juridique, SIRET, adresse, e-mail, téléphone, mention de TVA). **Remplissez-les** : un champ vide s'imprime « [à compléter] ». Les prix étant TTC, la facture affiche le total TTC et votre mention sur la TVA (par exemple « TVA non applicable, art. 293 B du CGI » si vous êtes en franchise en base). Les frais de port éventuels apparaissent sur une ligne distincte.
+- **Sécurité** : une personne ne peut télécharger que ses propres factures (compte lié ou même adresse e-mail vérifiée) ; pour toute autre commande l'API répond « introuvable ».
+- **Limites** : facture en français uniquement ; un remboursement ne génère pas encore d'avoir (la facture d'une commande remboursée n'est plus proposée) ; ce modèle est à faire valider par votre comptable (mentions obligatoires, TVA).
 
 ## Connexion avec Google / Facebook
 
