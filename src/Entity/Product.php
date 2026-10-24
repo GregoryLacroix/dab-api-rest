@@ -30,6 +30,10 @@ class Product
     #[ORM\Column]
     private bool $published = true;
 
+    // Quantité disponible (chaque galet est une pièce unique : 1 par défaut). 0 = vendu.
+    #[ORM\Column(options: ['default' => 1])]
+    private int $stock = 1;
+
     /** @var array<int, array{src?: string, tone?: string, alt: string}> */
     #[ORM\Column(type: Types::JSON)]
     private array $images = [];
@@ -53,6 +57,8 @@ class Product
     public function setDescription(string $description): static { $this->description = $description; return $this; }
     public function isPublished(): bool { return $this->published; }
     public function setPublished(bool $published): static { $this->published = $published; return $this; }
+    public function getStock(): int { return $this->stock; }
+    public function setStock(int $stock): static { $this->stock = max(0, $stock); return $this; }
     public function getImages(): array { return $this->images; }
     public function setImages(array $images): static { $this->images = array_values($images); return $this; }
 
@@ -66,6 +72,7 @@ class Product
             'price' => Money::fromCents($this->priceCents),
             'published' => $this->published,
             'description' => $this->description,
+            'stock' => $this->stock,
             'images' => $this->images,
         ];
     }

@@ -40,6 +40,13 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $verificationExpiresAt = null;
 
+    // Réinitialisation du mot de passe : seul le hash (SHA-256) du jeton est conservé, valable 1 heure
+    #[ORM\Column(length: 64, nullable: true)]
+    private ?string $resetHash = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $resetExpiresAt = null;
+
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
@@ -72,6 +79,10 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     public function isVerified(): bool { return $this->verified; }
     public function setVerified(bool $verified): static { $this->verified = $verified; return $this; }
+    public function getResetHash(): ?string { return $this->resetHash; }
+    public function setResetHash(?string $hash): static { $this->resetHash = $hash; return $this; }
+    public function getResetExpiresAt(): ?\DateTimeImmutable { return $this->resetExpiresAt; }
+    public function setResetExpiresAt(?\DateTimeImmutable $at): static { $this->resetExpiresAt = $at; return $this; }
     public function getVerificationHash(): ?string { return $this->verificationHash; }
     public function setVerificationHash(?string $hash): static { $this->verificationHash = $hash; return $this; }
     public function getVerificationExpiresAt(): ?\DateTimeImmutable { return $this->verificationExpiresAt; }

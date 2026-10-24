@@ -54,6 +54,24 @@ class Order
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $refundedAt = null;
 
+    // Expédition : transporteur, numéro et lien de suivi, saisis dans le back-office au passage à « expédiée »
+    #[ORM\Column(length: 40, nullable: true)]
+    private ?string $carrier = null;
+
+    #[ORM\Column(length: 60, nullable: true)]
+    private ?string $trackingNumber = null;
+
+    #[ORM\Column(length: 500, nullable: true)]
+    private ?string $trackingUrl = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $shippedAt = null;
+
+    // Stock : vrai quand les pièces réservées par cette commande ont été remises en vente (ou n'ont jamais été réservées :
+    // les commandes antérieures à la gestion du stock reçoivent « vrai » par défaut en base). Évite toute restitution en double.
+    #[ORM\Column(options: ['default' => true])]
+    private bool $stockReleased = false;
+
     // Facture : numéro unique et continu (FA-2026-0001), attribué au paiement (ou à la première demande pour les anciennes commandes)
     #[ORM\Column(length: 30, nullable: true, unique: true)]
     private ?string $invoiceNumber = null;
@@ -93,6 +111,20 @@ class Order
     public function setPaidAt(?\DateTimeImmutable $at): static { $this->paidAt = $at; return $this; }
     public function getRefundedAt(): ?\DateTimeImmutable { return $this->refundedAt; }
     public function setRefundedAt(?\DateTimeImmutable $at): static { $this->refundedAt = $at; return $this; }
+    public function getCarrier(): ?string { return $this->carrier; }
+    public function getTrackingNumber(): ?string { return $this->trackingNumber; }
+    public function getTrackingUrl(): ?string { return $this->trackingUrl; }
+    public function getShippedAt(): ?\DateTimeImmutable { return $this->shippedAt; }
+    public function setShippedAt(?\DateTimeImmutable $at): static { $this->shippedAt = $at; return $this; }
+    public function setTracking(?string $carrier, ?string $number, ?string $url): static
+    {
+        $this->carrier = $carrier;
+        $this->trackingNumber = $number;
+        $this->trackingUrl = $url;
+
+        return $this;
+    }
+    public function isStockReleased(): bool { return $this->stockReleased; }
     public function getInvoiceNumber(): ?string { return $this->invoiceNumber; }
     public function getInvoicedAt(): ?\DateTimeImmutable { return $this->invoicedAt; }
     public function setInvoice(string $number, \DateTimeImmutable $at): static { $this->invoiceNumber = $number; $this->invoicedAt = $at; return $this; }
@@ -122,6 +154,12 @@ class Order
             ],
             'shipping' => $this->shippingAddress,
             'invoice' => ['available' => $this->isInvoiceable(), 'number' => $this->invoiceNumber],
+            'tracking' => ($this->trackingNumber === null && $this->shippedAt === null) ? null : [
+                'carrier' => $this->carrier,
+                'number' => $this->trackingNumber,
+                'url' => $this->trackingUrl,
+                'shippedAt' => $this->shippedAt?->format(\DATE_ATOM),
+            ],
         ];
     }
 }

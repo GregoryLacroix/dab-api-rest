@@ -65,6 +65,9 @@ Connexion limitée à 5 essais / 15 min.
 | GET | `/api/auth/oauth/{google\|facebook}/callback` | fournisseur | Retour du fournisseur, puis redirection vers le React : `/connexion/retour#token=…` ou `/connexion?oauth=<raison>` |
 | GET | `/api/auth/me/orders` | Connecté | Mes commandes (liées au compte ou passées avec mon adresse e-mail), sans les paiements abandonnés |
 | GET | `/api/orders/{CMD-1001}/invoice` | Connecté (propriétaire ou admin) | Facture PDF d'une commande payée |
+| POST | `/api/auth/forgot-password` | public | `{ email }` : envoie un lien de réinitialisation (réponse identique que le compte existe ou non) |
+| POST | `/api/auth/reset-password` | public (jeton du lien) | `{ token, password, confirm }` : nouveau mot de passe, ferme toutes les sessions |
+| PATCH | `/api/orders/{CMD-1001}/status` | Admin | `{ status, tracking?: { carrier, number, url? }, notify? }` : « expédiée » enregistre le suivi et prévient le client |
 | POST | `/api/payments/webhook` | Stripe (signature) | Confirmation de paiement, expiration, remboursement |
 | POST | `/api/orders/{CMD-1001}/refund` | Admin | Remboursement total d'une commande payée en ligne |
 | GET | `/api/orders` | Admin | Commandes : `?status=payée&q=martin&page=1&perPage=10` |
@@ -83,6 +86,18 @@ Connexion limitée à 5 essais / 15 min.
 
 Listes : `{ "data": [...], "meta": { "page", "perPage", "total", "pageCount" } }` (`perPage` de 1 à 100).
 Les statuts de commande : `en attente`, `payée`, `expédiée`, `livrée`, `annulée`.
+
+## Stock des pièces uniques
+Chaque produit a une **quantité en stock** (champ « Quantité en stock » du back-office ; 1 par défaut, 0 = « Vendu »). Une commande **réserve** les pièces dès sa création (même en attente de paiement) par une requête atomique : deux clients ne peuvent jamais acheter la même pièce, le second reçoit « n'est plus disponible » (409). La réservation est rendue si le paiement échoue ou expire (31 min), si la commande est annulée avant envoi (back-office) ou remboursée avant envoi ; jamais en double. Sur le site, une pièce vendue affiche « Vendu » et ne peut plus être ajoutée au panier. Après mise à jour : `doctrine:schema:update --force` — les produits existants passent à `stock = 1` et les commandes existantes sont considérées comme « sans réservation ».
+
+## Mot de passe oublié
+Lien « Mot de passe oublié ? » sur la page de connexion → e-mail avec un lien **valable 1 heure, à usage unique** (seul le hash du jeton est en base, le jeton est dans le fragment `#` de l'adresse) → nouveau mot de passe (8 caractères minimum). Toutes les sessions ouvertes sont fermées ; un compte non confirmé est confirmé (la personne a prouvé qu'elle lit la boîte) ; un compte créé avec Google obtient ainsi un mot de passe. Limité à 8 demandes / 15 min par IP + e-mail. Nécessite un **envoi d'e-mails fonctionnel** (`MAILER_DSN`).
+
+## Suivi d'expédition
+Dans le back-office, choisir le statut « expédiée » ouvre une fenêtre : transporteur (Colissimo, Chronopost, Mondial Relay, DHL, UPS, autre), numéro de suivi, lien facultatif (sinon le lien habituel du transporteur est utilisé : `App\Service\TrackingLinks`, à vérifier avec un vrai numéro), et case « Prévenir le client par e-mail ». Le client reçoit l'e-mail « Votre commande est expédiée » et retrouve le suivi dans *Mon compte*. Le bouton « Suivi / renvoyer l'e-mail » permet de corriger un numéro. Un e-mail de **remboursement** part aussi au client à chaque remboursement.
+
+## Mise à jour de la base (stock, mot de passe oublié, suivi)
+`php bin/console doctrine:schema:update --force --env=prod` ajoute : `product.stock` ; `shop_order.stock_released`, `carrier`, `tracking_number`, `tracking_url`, `shipped_at` ; `app_user.reset_hash`, `reset_expires_at`. Puis `php bin/console cache:clear --env=prod`.
 
 ## Zoom des photos (réglage)
 Le contenu du site (`GET/PUT /api/content`) contient un bloc `zoom` : `{ "lens": true, "lensLevel": 2.5, "fullLevel": 2.5 }` (loupe à la souris on/off, grossissement de la loupe et grossissement en plein écran, de 1,5 à 5). Il se règle dans le back-office, page *Contenu du site*. Un contenu enregistré avant cette version reçoit automatiquement ces valeurs par défaut.

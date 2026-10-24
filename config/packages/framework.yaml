@@ -23,6 +23,11 @@ framework:
             policy: sliding_window
             limit: 20
             interval: '1 hour'
+        # « Mot de passe oublié » : demande et validation (par adresse IP + e-mail)
+        password_reset:
+            policy: sliding_window
+            limit: 8
+            interval: '15 minutes'
         contact:
             policy: sliding_window
             limit: 5

@@ -21,6 +21,7 @@ final class AppMailer
         private readonly UrlGeneratorInterface $urls,
         private readonly LoggerInterface $logger,
         #[Autowire('%env(MAIL_FROM)%')] private readonly string $from,
+        #[Autowire('%env(FRONTEND_URL)%')] private readonly string $frontendUrl,
     ) {
     }
 
@@ -124,6 +125,63 @@ final class AppMailer
         $text = "Merci {$m->getName()}, nous avons bien reçu votre message. Nous vous répondons en général sous 48 h ouvrées.\n\nVotre message :\n{$m->getMessage()}\n";
 
         return $this->send($m->getEmail(), $m->getName(), 'Nous avons bien reçu votre message', $text, $html);
+    }
+
+    // « Mot de passe oublié » : lien vers la page du site ; le jeton est dans le FRAGMENT (#…), jamais envoyé à un serveur
+    public function sendPasswordReset(User $user, string $token, string $lang = 'fr'): bool
+    {
+        $url = rtrim($this->frontendUrl, '/').($lang === 'en' ? '/en/reset-password' : '/nouveau-mot-de-passe').'#token='.$token;
+        $name = $this->e($user->getName());
+        $html = $this->layout("Bonjour $name,", '<p>Vous avez demandé à réinitialiser le mot de passe de votre compte Les galets d’Ambre.</p>'
+            .'<p style="margin:24px 0"><a href="'.$this->e($url).'" style="background:#0f2a6b;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:600">Choisir un nouveau mot de passe</a></p>'
+            .'<p style="font-size:13px;color:#6b5f50">Ce lien est valable 1 heure et ne peut servir qu’une fois. Si le bouton ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>'.$this->e($url).'</p>'
+            .'<p style="font-size:13px;color:#6b5f50">Vous n’êtes pas à l’origine de cette demande ? Ignorez ce message : votre mot de passe reste inchangé.</p>');
+        $text = "Bonjour {$user->getName()},\n\nPour choisir un nouveau mot de passe (lien valable 1 heure, usage unique) :\n$url\n\nVous n'êtes pas à l'origine de cette demande ? Ignorez ce message : votre mot de passe reste inchangé.\n";
+
+        return $this->send($user->getEmail(), $user->getName(), 'Réinitialisation de votre mot de passe', $text, $html);
+    }
+
+    // Colis expédié : transporteur, numéro de suivi et lien (si renseignés dans le back-office)
+    public function sendShipped(Order $order): bool
+    {
+        [$lines, $textLines] = $this->orderLines($order);
+        $address = $this->addressLines($order->getShippingAddress());
+        $carrier = (string) $order->getCarrier();
+        $number = (string) $order->getTrackingNumber();
+        $url = (string) $order->getTrackingUrl();
+
+        $track = '';
+        $trackText = '';
+        if ($number !== '') {
+            $track = '<p><strong>Transporteur :</strong> '.$this->e($carrier !== '' ? $carrier : 'colis').'<br><strong>Numéro de suivi :</strong> '.$this->e($number).'</p>';
+            $trackText = 'Transporteur : '.($carrier !== '' ? $carrier : 'colis')."\nNuméro de suivi : $number\n";
+            if ($url !== '') {
+                $track .= '<p style="margin:24px 0"><a href="'.$this->e($url).'" style="background:#0f2a6b;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:600">Suivre mon colis</a></p>';
+                $trackText .= "Suivre mon colis : $url\n";
+            }
+        }
+        $html = $this->layout('Votre commande est en route !',
+            '<p>Bonjour '.$this->e($order->getCustomerName()).', votre commande <strong>'.$order->getReference().'</strong> vient d’être expédiée.</p>'.$track
+            .'<table style="border-collapse:collapse;font-size:15px">'.$lines.'</table>'
+            .($address === [] ? '' : '<p style="margin-top:20px"><strong>Adresse de livraison</strong><br>'.implode('<br>', array_map($this->e(...), $address)).'</p>')
+            .'<p style="font-size:13px;color:#6b5f50">Chaque galet est emballé avec soin. Un problème à la réception ? Répondez simplement à cet e-mail.</p>');
+        $text = "Bonjour {$order->getCustomerName()},\n\nVotre commande {$order->getReference()} vient d'être expédiée.\n\n$trackText\n$textLines"
+            .($address === [] ? '' : "\nAdresse de livraison :\n".implode("\n", $address)."\n");
+
+        return $this->send($order->getCustomerEmail(), $order->getCustomerName(), 'Votre commande '.$order->getReference().' est expédiée', $text, $html);
+    }
+
+    // Remboursement effectué
+    public function sendRefund(Order $order): bool
+    {
+        $amount = $this->eur($order->getTotalCents() / 100);
+        $html = $this->layout('Votre commande a été remboursée',
+            '<p>Bonjour '.$this->e($order->getCustomerName()).', nous avons remboursé votre commande <strong>'.$order->getReference().'</strong> : <strong>'.$amount.'</strong>.</p>'
+            .'<p>Le montant revient sur votre moyen de paiement d’origine sous 5 à 10 jours ouvrés, selon votre banque.</p>'
+            .'<p style="font-size:13px;color:#6b5f50">Une question ? Répondez simplement à cet e-mail.</p>');
+        $text = "Bonjour {$order->getCustomerName()},\n\nNous avons remboursé votre commande {$order->getReference()} : $amount.\nLe montant revient sur votre moyen de paiement d'origine sous 5 à 10 jours ouvrés, selon votre banque.\n";
+
+        return $this->send($order->getCustomerEmail(), $order->getCustomerName(), 'Remboursement de votre commande '.$order->getReference(), $text, $html);
     }
 
     private function send(string $to, string $toName, string $subject, string $text, string $html, ?Address $replyTo = null): bool

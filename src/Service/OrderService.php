@@ -20,6 +20,7 @@ final class OrderService
         private readonly ProductRepository $products,
         private readonly AppMailer $mailer,
         private readonly StripeGateway $stripe,
+        private readonly StockService $stock,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -59,8 +60,19 @@ final class OrderService
         }
 
         $order = (new Order())->setCustomer($input->name, $input->email)->setItems($items)->setTotalCents($total)->setUser($user);
-        $this->em->persist($order);
-        $this->em->flush();
+
+        // Réservation du stock + enregistrement de la commande dans UNE transaction : tout ou rien
+        $conn = $this->em->getConnection();
+        $conn->beginTransaction();
+        try {
+            $this->stock->reserve($qtyById, $locale);
+            $this->em->persist($order);
+            $this->em->flush();
+            $conn->commit();
+        } catch (\Throwable $e) {
+            $conn->rollBack();
+            throw $e;
+        }
 
         if (!$this->stripe->isEnabled()) {
             $this->mailer->sendOrderConfirmation($order);
@@ -75,6 +87,7 @@ final class OrderService
             $this->logger->error('Stripe : page de paiement impossible à créer ('.$e->getMessage().')', ['order' => $order->getReference()]);
             $order->setStatus(OrderStatus::Cancelled);
             $this->em->flush();
+            $this->stock->release($order); // les pièces redeviennent disponibles
             throw new ServiceUnavailableHttpException(30, $locale === 'en'
                 ? 'Online payment is temporarily unavailable. Please try again in a few moments.'
                 : 'Le paiement en ligne est momentanément indisponible. Réessayez dans quelques instants.');

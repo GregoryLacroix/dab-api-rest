@@ -9,6 +9,7 @@ use App\Repository\UserRepository;
 use App\Service\ApiTokenService;
 use App\Service\ApiValidator;
 use App\Service\EmailVerificationService;
+use App\Service\PasswordResetService;
 use App\Service\ValidationFailedException;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -33,6 +34,8 @@ final class AuthController extends ApiController
         private readonly ApiValidator $validator,
         private readonly EmailVerificationService $verification,
         private readonly ApiTokenService $tokens,
+        private readonly PasswordResetService $passwordReset,
+        #[Autowire(service: 'limiter.password_reset')] private readonly RateLimiterFactory $resetLimiter,
         #[Autowire(service: 'limiter.register')] private readonly RateLimiterFactory $registerLimiter,
         #[Autowire(service: 'limiter.resend')] private readonly RateLimiterFactory $resendLimiter,
         #[Autowire('%env(FRONTEND_URL)%')] private readonly string $frontendUrl,
@@ -108,6 +111,45 @@ final class AuthController extends ApiController
         }
 
         return new JsonResponse(['message' => 'Si un compte non confirmé existe pour cette adresse, un nouvel e-mail vient d’être envoyé.'], 202);
+    }
+
+    // « Mot de passe oublié » : { "email": "…" } -> réponse identique que le compte existe ou non
+    #[Route('/forgot-password', name: 'api_forgot_password', methods: ['POST'])]
+    public function forgotPassword(Request $request): JsonResponse
+    {
+        $email = $this->body($request)['email'] ?? '';
+        $email = is_string($email) ? mb_strtolower(trim($email)) : '';
+        $this->throttle($this->resetLimiter, ($request->getClientIp() ?? 'unknown').'|'.$email);
+
+        if ($email !== '' && mb_strlen($email) <= 180) {
+            // La page de réinitialisation s'ouvre dans la langue du site (le React envoie Accept-Language : fr ou en)
+            $this->passwordReset->request($email, $request->getPreferredLanguage(['fr', 'en']) ?? 'fr');
+        }
+
+        return new JsonResponse(['message' => 'Si un compte existe pour cette adresse, un e-mail avec un lien de réinitialisation vient d’être envoyé (valable 1 heure).'], 202);
+    }
+
+    // Lien reçu par e-mail : { "token": "…", "password": "…", "confirm": "…" } ; ferme toutes les sessions ouvertes
+    #[Route('/reset-password', name: 'api_reset_password', methods: ['POST'])]
+    public function resetPassword(Request $request): JsonResponse
+    {
+        $this->throttle($this->resetLimiter, ($request->getClientIp() ?? 'unknown').'|reset');
+
+        $body = $this->body($request);
+        $token = is_string($body['token'] ?? null) ? $body['token'] : '';
+        $password = is_string($body['password'] ?? null) ? $body['password'] : '';
+        if (mb_strlen($password) < 8 || mb_strlen($password) > 200) {
+            throw new ValidationFailedException(['password' => 'Le mot de passe doit contenir 8 caractères minimum.']);
+        }
+        if (array_key_exists('confirm', $body) && $body['confirm'] !== $password) {
+            throw new ValidationFailedException(['confirm' => 'Les mots de passe ne correspondent pas.']);
+        }
+
+        return match ($this->passwordReset->reset($token, $password)) {
+            VerificationResult::Ok => new JsonResponse(['message' => 'Mot de passe modifié. Vous pouvez vous connecter.']),
+            VerificationResult::Expired => throw new GoneHttpException('Ce lien a expiré. Demandez un nouveau lien de réinitialisation.'),
+            VerificationResult::Invalid => throw new BadRequestHttpException('Lien de réinitialisation invalide ou déjà utilisé.'),
+        };
     }
 
     // Géré par le pare-feu (json_login) : { email, password } -> { token, expiresAt, user }

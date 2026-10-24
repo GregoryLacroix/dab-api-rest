@@ -89,6 +89,18 @@ class OrderRepository extends ServiceEntityRepository
         return $changed === 1;
     }
 
+    /** Marque le stock comme restitué, SEULEMENT s'il ne l'était pas (un seul gagnant, jamais de restitution en double). */
+    public function claimStockRelease(Order $order): bool
+    {
+        $changed = $this->createQueryBuilder('o')->update()
+            ->set('o.stockReleased', ':yes')
+            ->where('o.id = :id')->andWhere('o.stockReleased = :no')
+            ->setParameter('yes', true)->setParameter('no', false)->setParameter('id', $order->getId())
+            ->getQuery()->execute();
+
+        return $changed === 1;
+    }
+
     /** Commandes en ligne restées « en attente » après l'expiration de la session Stripe (webhook manqué) */
     public function findStalePending(\DateTimeImmutable $createdBefore): array
     {

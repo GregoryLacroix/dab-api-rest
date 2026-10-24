@@ -8,7 +8,10 @@ use App\Entity\OrderStatus;
 use App\Entity\User;
 use App\Repository\OrderRepository;
 use App\Service\ApiValidator;
+use App\Service\AppMailer;
 use App\Service\InvoiceService;
+use App\Service\StockService;
+use App\Service\TrackingLinks;
 use App\Service\OrderService;
 use App\Service\PaymentService;
 use App\Service\ValidationFailedException;
@@ -33,6 +36,8 @@ final class OrderController extends ApiController
         private readonly OrderService $service,
         private readonly PaymentService $payments,
         private readonly InvoiceService $invoices,
+        private readonly StockService $stock,
+        private readonly AppMailer $mailer,
         private readonly ApiValidator $validator,
         #[Autowire(service: 'limiter.order')] private readonly RateLimiterFactory $orderLimiter,
     ) {
@@ -77,21 +82,73 @@ final class OrderController extends ApiController
         return new JsonResponse($this->find($ref)->toArray());
     }
 
-    // { "status": "expédiée" }
+    // { "status": "expédiée", "tracking": { "carrier": "Colissimo", "number": "6A12345678901", "url": "https://…" (facultatif) }, "notify": true }
+    // « expédiée » : enregistre le suivi et prévient le client par e-mail (notify=false pour ne pas l'envoyer).
+    // « annulée » avant envoi : les pièces redeviennent disponibles.
     #[Route('/{ref}/status', name: 'api_orders_status', requirements: ['ref' => 'CMD-\d+'], methods: ['PATCH', 'PUT'])]
     #[IsGranted('ROLE_ADMIN')]
     public function status(string $ref, Request $request): JsonResponse
     {
         $order = $this->find($ref);
-        $value = $this->body($request)['status'] ?? null;
+        $body = $this->body($request);
+        $value = $body['status'] ?? null;
         $status = is_string($value) ? OrderStatus::tryFrom($value) : null;
         if ($status === null) {
             throw new ValidationFailedException(['status' => 'Statut invalide.']);
         }
+        $tracking = $status === OrderStatus::Shipped ? $this->tracking($body['tracking'] ?? null) : null;
+
+        $previous = $order->getStatus();
         $order->setStatus($status);
+        if ($status === OrderStatus::Shipped) {
+            if ($previous !== OrderStatus::Shipped) {
+                $order->setShippedAt(new \DateTimeImmutable('now', new \DateTimeZone('UTC')));
+            }
+            if ($tracking !== null) {
+                $order->setTracking($tracking['carrier'], $tracking['number'], $tracking['url']);
+            }
+        }
         $this->em->flush();
 
+        if ($status === OrderStatus::Cancelled && \in_array($previous, [OrderStatus::Pending, OrderStatus::Paid], true)) {
+            $this->stock->release($order);
+        }
+        $notify = filter_var($body['notify'] ?? true, \FILTER_VALIDATE_BOOLEAN);
+        if ($status === OrderStatus::Shipped && $notify && ($previous !== OrderStatus::Shipped || $tracking !== null)) {
+            $this->mailer->sendShipped($order);
+        }
+
         return new JsonResponse($order->toArray());
+    }
+
+    /** @return array{carrier: ?string, number: string, url: ?string}|null null si aucun suivi n'est fourni */
+    private function tracking(mixed $raw): ?array
+    {
+        if (!\is_array($raw)) {
+            return null;
+        }
+        $carrier = \is_string($raw['carrier'] ?? null) ? trim($raw['carrier']) : '';
+        $number = \is_string($raw['number'] ?? null) ? trim($raw['number']) : '';
+        $url = \is_string($raw['url'] ?? null) ? trim($raw['url']) : '';
+        if ($carrier === '' && $number === '' && $url === '') {
+            return null;
+        }
+        $errors = [];
+        if (mb_strlen($carrier) > 40) {
+            $errors['tracking.carrier'] = 'Nom du transporteur trop long (40 caractères maximum).';
+        }
+        if ($number === '' || !preg_match('~^[A-Za-z0-9][A-Za-z0-9 ._/-]{0,59}$~', $number)) {
+            $errors['tracking.number'] = 'Numéro de suivi invalide (lettres, chiffres, 60 caractères maximum).';
+        }
+        // Le lien est repris dans l'e-mail du client : uniquement http(s)
+        if ($url !== '' && (mb_strlen($url) > 500 || !filter_var($url, \FILTER_VALIDATE_URL) || !preg_match('~^https?://~i', $url))) {
+            $errors['tracking.url'] = 'Lien de suivi invalide (adresse complète en http:// ou https://).';
+        }
+        if ($errors !== []) {
+            throw new ValidationFailedException($errors);
+        }
+
+        return ['carrier' => $carrier !== '' ? $carrier : null, 'number' => $number, 'url' => $url !== '' ? $url : TrackingLinks::urlFor($carrier, $number)];
     }
 
     // Remboursement total d'une commande payée en ligne (puis statut « annulée »)

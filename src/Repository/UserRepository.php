@@ -19,6 +19,11 @@ class UserRepository extends ServiceEntityRepository
         return $this->findOneBy(['email' => mb_strtolower(trim($email))]);
     }
 
+    public function findOneByResetHash(string $hash): ?User
+    {
+        return $this->findOneBy(['resetHash' => $hash]);
+    }
+
     public function findOneByVerificationHash(string $hash): ?User
     {
         return $this->findOneBy(['verificationHash' => $hash]);

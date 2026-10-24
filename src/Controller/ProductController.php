@@ -105,6 +105,9 @@ final class ProductController extends ApiController
             ->setDescription($input->description)
             ->setPublished($input->published)
             ->setImages($input->cleanImages());
+        if ($input->stock !== null) {
+            $product->setStock($input->stock);
+        }
         $this->em->persist($product);
         $this->em->flush();
     }

@@ -24,6 +24,7 @@ final class PaymentService
         private readonly StripeGateway $stripe,
         private readonly AppMailer $mailer,
         private readonly InvoiceService $invoices,
+        private readonly StockService $stock,
         private readonly LoggerInterface $logger,
         #[Autowire('%env(CONTACT_EMAIL)%')] private readonly string $shopEmail,
     ) {
@@ -140,6 +141,7 @@ final class PaymentService
     {
         if ($this->orders->transition($order, OrderStatus::Pending, OrderStatus::Cancelled)) {
             $this->em->refresh($order);
+            $this->stock->release($order); // paiement expiré, refusé ou abandonné : les pièces redeviennent disponibles
         }
     }
 
@@ -161,11 +163,20 @@ final class PaymentService
 
     private function markRefunded(Order $order): void
     {
-        if ($order->getRefundedAt() === null) {
+        $first = $order->getRefundedAt() === null;
+        $shipped = \in_array($order->getStatus(), [OrderStatus::Shipped, OrderStatus::Delivered], true);
+        if ($first) {
             $order->setRefundedAt(new \DateTimeImmutable('now', new \DateTimeZone('UTC')));
         }
         $order->setStatus(OrderStatus::Cancelled);
         $this->em->flush();
+
+        if ($first) {
+            if (!$shipped) {
+                $this->stock->release($order); // colis pas encore parti : la pièce est de nouveau en vente
+            }
+            $this->mailer->sendRefund($order);
+        }
     }
 
     /** @param array<string, mixed> $session */

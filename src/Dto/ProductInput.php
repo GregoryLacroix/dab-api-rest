@@ -28,6 +28,10 @@ final class ProductInput
 
     public bool $published = true;
 
+    // null = ne pas modifier (nouveau produit : 1 pièce)
+    #[Assert\Range(min: 0, max: 9999, notInRangeMessage: 'Quantité en stock invalide (de 0 à 9999).')]
+    public ?int $stock = null;
+
     /** @var array<int, mixed> */
     public array $images = [];
 
@@ -42,6 +46,11 @@ final class ProductInput
         $in->description = is_string($d['description'] ?? null) ? trim($d['description']) : '';
         $in->published = array_key_exists('published', $d) ? filter_var($d['published'], FILTER_VALIDATE_BOOLEAN) : true;
         $in->images = is_array($d['images'] ?? null) ? array_values($d['images']) : [];
+        if (array_key_exists('stock', $d) && $d['stock'] !== null && $d['stock'] !== '') {
+            $stock = $d['stock'];
+            // Valeur non numérique -> -1 : refusée par la contrainte ci-dessus
+            $in->stock = (is_int($stock) || (is_string($stock) && ctype_digit(trim($stock)))) ? (int) $stock : -1;
+        }
 
         return $in;
     }
