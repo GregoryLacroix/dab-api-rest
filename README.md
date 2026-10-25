@@ -79,13 +79,26 @@ Connexion limitée à 5 essais / 15 min.
 | GET · PATCH · DELETE | `/api/messages/{id}` | Admin | Détail · marquer lu/non lu `{ "read": true }` · supprimer |
 | GET | `/api/slider` | public | `{ settings, products }` (produits déjà choisis selon le mode auto/manuel) |
 | PUT/PATCH | `/api/slider` | Admin | Slider d'accueil `{ enabled, mode, count, delay, productIds }` |
-| POST | `/api/uploads` | Admin | Photo (multipart, champ `file`) → `{ src }` |
+| POST | `/api/uploads` | Admin | Photo (multipart, champ `file`) → `{ src, width, height }` ; la photo est optimisée (voir « Photos optimisées ») |
+| GET | `/api/share/products/{id}?lang=fr\|en` | public (robots de partage) | Page d'aperçu (nom, photo, prix) d'une fiche produit, utilisée par WhatsApp, Facebook… |
 | GET | `/api/admin/stats` | Admin | Tableau de bord |
 
 \* Les visiteurs ne voient que les produits **publiés** ; un administrateur voit aussi les brouillons (`?published=0|1`).
 
 Listes : `{ "data": [...], "meta": { "page", "perPage", "total", "pageCount" } }` (`perPage` de 1 à 100).
 Les statuts de commande : `en attente`, `payée`, `expédiée`, `livrée`, `annulée`.
+
+## Photos optimisées
+À l'envoi (back-office → fiche produit), chaque photo JPEG / PNG / WebP est **optimisée** par l'API (extension PHP **GD**, présente chez presque tous les hébergeurs ; sans elle, la photo est conservée telle quelle) : orientation corrigée, métadonnées (dont la position GPS) supprimées, image principale réduite à 1600 px au format **WebP**, versions 480 / 800 / 1200 px (`<nom>-480.webp`…) et une version JPEG `<nom>-share.jpg` pour les aperçus de partage. Le site choisit tout seul la version la plus légère adaptée à l'écran (`srcset`). Les GIF sont conservés tels quels. Dans le navigateur, les grosses photos de téléphone sont d'abord réduites à 2400 px (envoi plus rapide ; limite de 30 Mo à l'origine, 5 Mo après réduction).
+**Photos déjà en ligne** (envoyées avant cette version, ou photos d'exemple) :
+```bash
+php bin/console app:optimize-images --dry-run   # liste ce qui serait fait
+php bin/console app:optimize-images             # crée les versions légères et met à jour les produits
+```
+Les fichiers d'origine ne sont pas supprimés. Prévoyez de la mémoire PHP (256 Mo conseillés pour de grosses images).
+
+## Aperçus de partage (WhatsApp, Facebook, iMessage, X, LinkedIn…)
+Ces robots ne lancent pas le JavaScript du site : ils ne voient que les balises génériques. Le `.htaccess` du site les redirige (eux seulement, d'après leur identifiant) pour une fiche produit vers `GET /api/share/products/{id}`, une page minimale avec le nom, la photo (JPEG de partage) et le prix. Un nouveau produit a donc un bel aperçu **tout de suite, sans nouveau build**. Test : `curl -sIA "facebookexternalhit/1.1" https://votre-site/produits/1` doit répondre `302` vers l'API ; `curl -s https://votre-api/api/share/products/1` montre les balises `og:`. Le site doit déclarer l'adresse de l'API dans son `.htaccess` (2 lignes à adapter si elle change). Pour forcer Facebook à relire un aperçu : [developers.facebook.com/tools/debug](https://developers.facebook.com/tools/debug/).
 
 ## Stock des pièces uniques
 Chaque produit a une **quantité en stock** (champ « Quantité en stock » du back-office ; 1 par défaut, 0 = « Vendu »). Une commande **réserve** les pièces dès sa création (même en attente de paiement) par une requête atomique : deux clients ne peuvent jamais acheter la même pièce, le second reçoit « n'est plus disponible » (409). La réservation est rendue si le paiement échoue ou expire (31 min), si la commande est annulée avant envoi (back-office) ou remboursée avant envoi ; jamais en double. Sur le site, une pièce vendue affiche « Vendu » et ne peut plus être ajoutée au panier. Après mise à jour : `doctrine:schema:update --force` — les produits existants passent à `stock = 1` et les commandes existantes sont considérées comme « sans réservation ».
