@@ -25,6 +25,7 @@ final class PaymentService
         private readonly AppMailer $mailer,
         private readonly InvoiceService $invoices,
         private readonly StockService $stock,
+        private readonly QuoteService $quotes,
         private readonly LoggerInterface $logger,
         #[Autowire('%env(CONTACT_EMAIL)%')] private readonly string $shopEmail,
     ) {
@@ -42,6 +43,8 @@ final class PaymentService
                 $order = $this->orderForSession($object);
                 if ($order !== null) {
                     $this->applySession($order, $object);
+                } elseif (!$this->quotes->handleSession($object)) { // acompte d'un devis de fresque ?
+                    $this->logger->warning('Stripe : événement pour une session inconnue.', ['session' => $object['id'] ?? null]);
                 }
                 break;
 
@@ -183,12 +186,7 @@ final class PaymentService
     private function orderForSession(array $session): ?Order
     {
         $id = $session['id'] ?? null;
-        $order = \is_string($id) ? $this->orders->findOneBy(['stripeSessionId' => $id]) : null;
-        if ($order === null) {
-            $this->logger->warning('Stripe : événement pour une session inconnue.', ['session' => $id]);
-        }
-
-        return $order;
+        return \is_string($id) ? $this->orders->findOneBy(['stripeSessionId' => $id]) : null;
     }
 
     /**

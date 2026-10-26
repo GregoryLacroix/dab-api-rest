@@ -32,6 +32,11 @@ framework:
             policy: sliding_window
             limit: 5
             interval: '1 hour'
+        # Demandes de devis (formulaire public avec photos)
+        quote:
+            policy: sliding_window
+            limit: 5
+            interval: '1 hour'
         # Connexion Google / Facebook : départ et retour (par adresse IP)
         oauth:
             policy: sliding_window

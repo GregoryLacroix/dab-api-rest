@@ -68,6 +68,13 @@ Connexion limitée à 5 essais / 15 min.
 | POST | `/api/auth/forgot-password` | public | `{ email }` : envoie un lien de réinitialisation (réponse identique que le compte existe ou non) |
 | POST | `/api/auth/reset-password` | public (jeton du lien) | `{ token, password, confirm }` : nouveau mot de passe, ferme toutes les sessions |
 | PATCH | `/api/orders/{CMD-1001}/status` | Admin | `{ status, tracking?: { carrier, number, url? }, notify? }` : « expédiée » enregistre le suivi et prévient le client |
+| POST | `/api/quotes` | public (limité : 5 / heure / IP) | Demande de devis, `multipart/form-data` : `name`, `email`, `phone`, `projectType` (interieur\|exterieur), `widthCm`, `heightCm`, `location`, `description`, `budget`, `desiredBy`, `consent`, `lang` + `photos[]` (4 × 8 Mo max) |
+| GET | `/api/quotes/{clé}` | public (clé de 48 car.) | Page du devis du client : montant, acompte, état, `payable` |
+| POST | `/api/quotes/{clé}/checkout` | public (clé) | Crée la page de paiement Stripe de l'acompte → `{ checkoutUrl }` |
+| GET | `/api/quotes` | Admin | Liste des demandes (`?status=`, `?q=`, pagination) |
+| PATCH | `/api/quotes/DEV-1001` | Admin | `{ status?, adminNote?, amount?, depositPercent?, quoteMessage? }` |
+| POST | `/api/quotes/DEV-1001/send` | Admin | `{ amount, depositPercent, quoteMessage }` : envoie le devis par e-mail avec le lien de l'acompte |
+| DELETE | `/api/quotes/DEV-1001` | Admin | Supprime la demande et ses photos |
 | POST | `/api/payments/webhook` | Stripe (signature) | Confirmation de paiement, expiration, remboursement |
 | POST | `/api/orders/{CMD-1001}/refund` | Admin | Remboursement total d'une commande payée en ligne |
 | GET | `/api/orders` | Admin | Commandes : `?status=payée&q=martin&page=1&perPage=10` |
@@ -87,6 +94,14 @@ Connexion limitée à 5 essais / 15 min.
 
 Listes : `{ "data": [...], "meta": { "page", "perPage", "total", "pageCount" } }` (`perPage` de 1 à 100).
 Les statuts de commande : `en attente`, `payée`, `expédiée`, `livrée`, `annulée`.
+
+## Devis de fresque (demande, devis chiffré, acompte)
+1. **Demande** : la page `/devis` du site (anglais `/en/quote`) collecte projet, dimensions, lieu, budget et jusqu'à 4 photos du mur. Elle est enregistrée (référence `DEV-1001`…), **vous recevez un e-mail** avec les détails et les liens des photos (répondre écrit directement au client), et le client reçoit un accusé de réception.
+2. **Devis** : back-office → **Devis** : ouvrez la demande, saisissez le **montant TTC**, le **pourcentage d'acompte** (30 % par défaut, 0 = pas d'acompte en ligne) et un message, puis **Envoyer le devis au client**. Le client reçoit un e-mail avec le montant et un lien vers sa page de devis (`/devis/<clé>`, la clé de 48 caractères tient lieu de mot de passe).
+3. **Acompte** : sur cette page, « Régler l'acompte » ouvre une page de paiement **Stripe** (31 minutes). Au paiement (webhook, avec vérification directe auprès de Stripe en secours), le statut passe à **acompte payé** et vous et le client recevez un e-mail. Une demande dont l'acompte est réglé ne peut plus être modifiée.
+- **Prérequis** : Stripe configuré (voir « Paiement en ligne ») ; sans clé Stripe, mettez l'acompte à 0 %. Après mise à jour : `doctrine:schema:update --force` (nouvelle table `quote_request`) et `cache:clear`.
+- **Photos** : enregistrées dans `public/uploads/quotes/` (optimisées si l'extension GD est présente). Leurs adresses sont aléatoires (non devinables) mais publiques. **PHP** doit accepter les envois : `upload_max_filesize` ≥ 8M et `post_max_size` ≥ 32M (réglage de l'hébergeur ; avec 2M par défaut, certaines photos seront refusées).
+- **Données (RGPD)** : les demandes sans acompte sont supprimées avec leurs photos après 36 mois (`php bin/console app:purge-data`, option `--quotes-months`), incluses dans l'export du compte (même adresse e-mail) et supprimées avec le compte ; un acompte réglé est conservé (pièce comptable). La **facture d'acompte** n'est pas automatisée (Stripe envoie un reçu) : à établir selon votre comptabilité.
 
 ## Photos optimisées
 À l'envoi (back-office → fiche produit), chaque photo JPEG / PNG / WebP est **optimisée** par l'API (extension PHP **GD**, présente chez presque tous les hébergeurs ; sans elle, la photo est conservée telle quelle) : orientation corrigée, métadonnées (dont la position GPS) supprimées, image principale réduite à 1600 px au format **WebP**, versions 480 / 800 / 1200 px (`<nom>-480.webp`…) et une version JPEG `<nom>-share.jpg` pour les aperçus de partage. Le site choisit tout seul la version la plus légère adaptée à l'écran (`srcset`). Les GIF sont conservés tels quels. Dans le navigateur, les grosses photos de téléphone sont d'abord réduites à 2400 px (envoi plus rapide ; limite de 30 Mo à l'origine, 5 Mo après réduction).

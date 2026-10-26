@@ -5,6 +5,8 @@ namespace App\Command;
 use App\Entity\ContactMessage;
 use App\Entity\User;
 use App\Repository\ApiTokenRepository;
+use App\Repository\QuoteRequestRepository;
+use App\Service\QuoteService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -22,6 +24,8 @@ final class PurgeDataCommand extends Command
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly ApiTokenRepository $tokens,
+        private readonly QuoteRequestRepository $quotes,
+        private readonly QuoteService $quoteService,
     ) {
         parent::__construct();
     }
@@ -30,6 +34,7 @@ final class PurgeDataCommand extends Command
     {
         $this->addOption('unverified-days', null, InputOption::VALUE_REQUIRED, 'Comptes dont l’e-mail n’est pas confirmé depuis plus de N jours', '30')
             ->addOption('messages-months', null, InputOption::VALUE_REQUIRED, 'Messages du formulaire de contact reçus il y a plus de N mois', '12')
+            ->addOption('quotes-months', null, InputOption::VALUE_REQUIRED, 'Demandes de devis (sans acompte) reçues il y a plus de N mois', '36')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Affiche ce qui serait supprimé sans rien supprimer');
     }
 
@@ -39,6 +44,9 @@ final class PurgeDataCommand extends Command
         $dry = (bool) $input->getOption('dry-run');
         $accountsCut = new \DateTimeImmutable('-'.max(1, (int) $input->getOption('unverified-days')).' days');
         $messagesCut = new \DateTimeImmutable('-'.max(1, (int) $input->getOption('messages-months')).' months');
+
+        // Demandes de devis sans acompte : supprimées avec leurs photos (un acompte réglé reste conservé : pièce comptable)
+        $oldQuotes = $this->quotes->findOlderThanWithoutDeposit(new \DateTimeImmutable('-'.max(1, (int) $input->getOption('quotes-months')).' months'));
 
         // Comptes jamais confirmés (aucun jeton ni commande possible : ils n'ont jamais pu se connecter)
         $accounts = $this->em->createQueryBuilder()->from(User::class, 'u')
@@ -58,12 +66,14 @@ final class PurgeDataCommand extends Command
                 $this->em->createQueryBuilder()->delete(ContactMessage::class, 'm')->where('m.createdAt < :cut')
                     ->setParameter('cut', $messagesCut)->getQuery()->execute();
             }
+            $this->quoteService->purge($oldQuotes);
             $this->tokens->purgeExpired();
         }
 
         $io->table(['Donnée', $dry ? 'À supprimer' : 'Supprimé'], [
             ['Comptes non confirmés (> '.$input->getOption('unverified-days').' jours)', $nAccounts],
             ['Messages de contact (> '.$input->getOption('messages-months').' mois)', $nMessages],
+            ['Demandes de devis sans acompte (> '.$input->getOption('quotes-months').' mois)', count($oldQuotes)],
             ['Jetons de connexion expirés', $dry ? '—' : 'purgés'],
         ]);
         $io->success($dry ? 'Simulation terminée : rien n’a été supprimé.' : 'Purge terminée.');

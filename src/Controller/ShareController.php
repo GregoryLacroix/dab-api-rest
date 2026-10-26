@@ -89,7 +89,7 @@ HTML;
                 $src = rtrim($this->apiUrl, '/').$src;
             }
 
-            return preg_replace('~^(.*/uploads/[a-f0-9]{32})\.(webp|jpg)$~', '$1-share.jpg', $src) ?? $src;
+            return preg_replace('~^(.*/uploads/[a-f0-9]{32}-opt)\.(webp|jpg)$~', '$1-share.jpg', $src) ?? $src;
         }
 
         return $front.'/og-default.jpg';

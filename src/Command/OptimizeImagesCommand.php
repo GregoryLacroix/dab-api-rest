@@ -55,7 +55,7 @@ final class OptimizeImagesCommand extends Command
                 $rel = str_starts_with($src, $prefix) ? substr($src, \strlen($prefix)) : '';
                 $file = $this->dir.'/'.$rel;
                 // Ignorées : photos hébergées ailleurs, déjà optimisées, GIF, chemins suspects, fichiers absents
-                if ($rel === '' || str_contains($rel, '..') || preg_match('~^[a-f0-9]{32}\.(webp|jpg)$~', $rel) || preg_match('~\.gif$~i', $rel) || !is_file($file)) {
+                if ($rel === '' || str_contains($rel, '..') || preg_match('~^[a-f0-9]{32}-opt\.(webp|jpg)$~', $rel) || preg_match('~\.gif$~i', $rel) || !is_file($file)) {
                     ++$skipped;
                     continue;
                 }

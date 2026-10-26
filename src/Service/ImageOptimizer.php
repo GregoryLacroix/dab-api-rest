@@ -5,7 +5,7 @@ namespace App\Service;
 // Optimisation des photos téléversées (extension PHP GD, présente chez presque tous les hébergeurs) :
 //  - orientation corrigée (photos de téléphone), métadonnées supprimées (dont la position GPS) ;
 //  - image principale réduite à 1600 px de côté maximum, au format WebP (JPEG si WebP indisponible) ;
-//  - versions 480 / 800 / 1200 px (nommées <nom>-480.webp…) : le site choisit la plus légère adaptée à l'écran (srcset) ;
+//  - versions 480 / 800 / 1200 px (nommées <nom>-opt-480.webp…) : le site choisit la plus légère adaptée à l'écran (srcset) ;
 //  - <nom>-share.jpg : version JPEG 1200 px pour les aperçus de partage (tous les réseaux sociaux n'affichent pas le WebP).
 final class ImageOptimizer
 {
@@ -23,7 +23,7 @@ final class ImageOptimizer
      *
      * @throws \RuntimeException si l'image n'est pas décodable (l'appelant garde alors le fichier d'origine)
      */
-    public function process(string $path, string $dir): array
+    public function process(string $path, string $dir, bool $variants = true): array
     {
         $info = @getimagesize($path);
         if ($info === false || ($info[0] * $info[1]) > self::MAX_PIXELS) {
@@ -47,15 +47,17 @@ final class ImageOptimizer
         }
         $webp = \function_exists('imagewebp');
         $ext = $webp ? 'webp' : 'jpg';
-        $base = bin2hex(random_bytes(16));
+        // « -opt » : marque les photos optimisées (les anciennes photos, sans versions allégées, ne portent pas ce suffixe)
+        $base = bin2hex(random_bytes(16)).'-opt';
 
         $main = $this->fit($image, self::MAX_SIDE);
         $this->save($main, "$dir/$base.$ext", $webp);
-        foreach (self::VARIANTS as $side) {
-            $this->save($this->fit($main, $side), "$dir/$base-$side.$ext", $webp);
+        if ($variants) { // les photos de mur des devis n'ont besoin que de l'image principale
+            foreach (self::VARIANTS as $side) {
+                $this->save($this->fit($main, $side), "$dir/$base-$side.$ext", $webp);
+            }
+            $this->save($this->fit($main, 1200), "$dir/$base-share.jpg", false);
         }
-
-        $this->save($this->fit($main, 1200), "$dir/$base-share.jpg", false);
 
         return ['name' => "$base.$ext", 'width' => imagesx($main), 'height' => imagesy($main)];
     }

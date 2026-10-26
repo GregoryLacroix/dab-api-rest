@@ -4,6 +4,7 @@ namespace App\Service;
 
 use App\Entity\Money;
 use App\Entity\Order;
+use App\Entity\QuoteRequest;
 use Stripe\Event;
 use Stripe\StripeClient;
 use Stripe\Webhook;
@@ -99,6 +100,42 @@ final class StripeGateway
 
         // La clé d'idempotence évite de créer deux pages de paiement si la requête est rejouée
         $session = $this->client()->checkout->sessions->create($params, ['idempotency_key' => 'checkout-order-'.$order->getId()]);
+
+        return ['id' => (string) $session->id, 'url' => (string) $session->url];
+    }
+
+    /**
+     * Page de paiement de l'ACOMPTE d'un devis de fresque (le montant vient de la base). Pas d'adresse de livraison à demander.
+     *
+     * @return array{id: string, url: string}
+     */
+    public function createQuoteDeposit(QuoteRequest $quote, int $cents): array
+    {
+        $lang = $quote->getLang() === 'en' ? 'en' : 'fr';
+        $page = rtrim($this->frontendUrl, '/').($lang === 'en' ? '/en/quote/' : '/devis/').$quote->getPayToken();
+        $meta = ['quote_ref' => $quote->getReference(), 'quote_id' => (string) $quote->getId()];
+
+        $params = [
+            'mode' => 'payment',
+            'client_reference_id' => $quote->getReference(),
+            'customer_email' => $quote->getEmail(),
+            'locale' => $lang,
+            'line_items' => [[
+                'quantity' => 1,
+                'price_data' => [
+                    'currency' => 'eur',
+                    'unit_amount' => $cents,
+                    'product_data' => ['name' => ($lang === 'en' ? 'Deposit – mural ' : 'Acompte – fresque murale ').$quote->getReference()],
+                ],
+            ]],
+            'success_url' => $page.'?paid=1',
+            'cancel_url' => $page,
+            'expires_at' => time() + 31 * 60,
+            'metadata' => $meta,
+            'payment_intent_data' => ['description' => 'Les galets d’Ambre – acompte '.$quote->getReference(), 'metadata' => $meta],
+        ];
+        // Une pression en double sur le bouton dans la même minute ne crée qu'une seule page de paiement
+        $session = $this->client()->checkout->sessions->create($params, ['idempotency_key' => 'quote-'.$quote->getId().'-'.$cents.'-'.intdiv(time(), 60)]);
 
         return ['id' => (string) $session->id, 'url' => (string) $session->url];
     }

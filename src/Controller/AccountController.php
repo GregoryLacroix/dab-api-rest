@@ -8,6 +8,9 @@ use App\Entity\OrderStatus;
 use App\Entity\User;
 use App\Repository\ApiTokenRepository;
 use App\Repository\ContactMessageRepository;
+use App\Repository\QuoteRequestRepository;
+use App\Service\QuoteService;
+use App\Entity\QuoteRequest;
 use App\Repository\OAuthIdentityRepository;
 use App\Repository\OrderRepository;
 use App\Service\ValidationFailedException;
@@ -28,6 +31,8 @@ final class AccountController extends ApiController
         private readonly EntityManagerInterface $em,
         private readonly OrderRepository $orders,
         private readonly ContactMessageRepository $messages,
+        private readonly QuoteRequestRepository $quotes,
+        private readonly QuoteService $quoteService,
         private readonly ApiTokenRepository $tokens,
         private readonly UserPasswordHasherInterface $hasher,
         private readonly OAuthIdentityRepository $identities,
@@ -63,6 +68,7 @@ final class AccountController extends ApiController
             'account' => $user->toArray() + ['createdAt' => $user->getCreatedAt()->format(\DATE_ATOM), 'signInProviders' => $this->identities->providersFor($user)],
             'orders' => array_map(fn (Order $o) => $o->toArray(), $this->orders->findForPerson($user)),
             'messages' => array_map(fn (ContactMessage $m) => $m->toArray(), $this->messages->findByEmail($user->getEmail())),
+            'quotes' => array_map(fn (QuoteRequest $q) => $q->toArray(), $this->quotes->findByEmail($user->getEmail())),
         ], 200, ['Cache-Control' => 'no-store']);
     }
 
@@ -92,6 +98,8 @@ final class AccountController extends ApiController
         }
 
         $this->messages->deleteByEmail($user->getEmail());
+        // Demandes de devis et leurs photos supprimées ; celles dont l'acompte est réglé sont conservées (pièce comptable, comme les commandes)
+        $this->quoteService->purge(array_values(array_filter($this->quotes->findByEmail($user->getEmail()), static fn (QuoteRequest $q) => $q->getDepositPaidAt() === null)));
         $this->orders->detachUser($user);
         $this->tokens->deleteForUser($user);
         $this->identities->deleteForUser($user);

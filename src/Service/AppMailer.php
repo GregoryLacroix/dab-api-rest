@@ -4,6 +4,7 @@ namespace App\Service;
 
 use App\Entity\ContactMessage;
 use App\Entity\Order;
+use App\Entity\QuoteRequest;
 use App\Entity\User;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -125,6 +126,100 @@ final class AppMailer
         $text = "Merci {$m->getName()}, nous avons bien reçu votre message. Nous vous répondons en général sous 48 h ouvrées.\n\nVotre message :\n{$m->getMessage()}\n";
 
         return $this->send($m->getEmail(), $m->getName(), 'Nous avons bien reçu votre message', $text, $html);
+    }
+
+    // ---- Devis de fresque -------------------------------------------------------------------------------------------------
+
+    /** Résumé de la demande, en HTML (pour le client et pour la boutique). */
+    private function quoteSummary(QuoteRequest $q, bool $withPhotos): string
+    {
+        $size = ($q->getWidthCm() && $q->getHeightCm()) ? $q->getWidthCm().' × '.$q->getHeightCm().' cm' : 'non précisées';
+        $rows = [
+            'Type de projet' => QuoteRequest::PROJECT_LABELS[$q->getProjectType()] ?? $q->getProjectType(),
+            'Dimensions du mur' => $size,
+            'Lieu' => $q->getLocation() ?: 'non précisé',
+            'Budget' => $q->getBudget() ? (QuoteRequest::BUDGET_LABELS[$q->getBudget()] ?? $q->getBudget()) : 'non précisé',
+            'Pour quand' => $q->getDesiredBy() ?: 'non précisé',
+        ];
+        $html = '<table style="border-collapse:collapse;font-size:14px">';
+        foreach ($rows as $label => $value) {
+            $html .= '<tr><td style="padding:3px 14px 3px 0;color:#6b5f50">'.$label.'</td><td>'.$this->e((string) $value).'</td></tr>';
+        }
+        $html .= '</table><p style="white-space:pre-wrap;font-size:14px;border-left:3px solid #e6d9c3;padding-left:12px">'.$this->e($q->getDescription()).'</p>';
+        if ($withPhotos && $q->getPhotos() !== []) {
+            $html .= '<p style="font-size:14px"><strong>Photos du mur :</strong><br>';
+            foreach ($q->getPhotos() as $i => $url) {
+                $html .= '<a href="'.$this->e((string) $url).'">Photo '.($i + 1).'</a> ';
+            }
+            $html .= '</p>';
+        }
+
+        return $html;
+    }
+
+    /** Accusé de réception envoyé à la personne qui demande un devis. */
+    public function sendQuoteAck(QuoteRequest $q): bool
+    {
+        $html = $this->layout('Demande de devis '.$q->getReference().' bien reçue',
+            '<p>Bonjour '.$this->e($q->getName()).', merci pour votre demande de fresque. Je l’étudie et je vous réponds avec un devis, en général sous <strong>3 jours ouvrés</strong>.</p>'
+            .$this->quoteSummary($q, false)
+            .'<p style="font-size:13px;color:#6b5f50">Une précision à ajouter ? Répondez simplement à cet e-mail.</p>');
+        $text = "Bonjour {$q->getName()},\n\nMerci pour votre demande de fresque ({$q->getReference()}). Je l'étudie et je vous réponds avec un devis, en général sous 3 jours ouvrés.\n\n"
+            .'Type : '.(QuoteRequest::PROJECT_LABELS[$q->getProjectType()] ?? '')."\n".$q->getDescription()."\n";
+
+        return $this->send($q->getEmail(), $q->getName(), 'Votre demande de devis '.$q->getReference(), $text, $html);
+    }
+
+    /** Prévient la boutique d'une nouvelle demande (la réponse va directement au client). */
+    public function sendQuoteNotification(QuoteRequest $q, string $shopEmail): bool
+    {
+        $html = $this->layout('Nouvelle demande de devis '.$q->getReference(),
+            '<p><strong>'.$this->e($q->getName()).'</strong> &lt;'.$this->e($q->getEmail()).'&gt;'.($q->getPhone() ? ' — '.$this->e($q->getPhone()) : '').'</p>'
+            .$this->quoteSummary($q, true));
+        $text = "Nouvelle demande de devis {$q->getReference()}\n{$q->getName()} <{$q->getEmail()}>\n\n{$q->getDescription()}\n\n".implode("\n", $q->getPhotos())."\n";
+
+        return $this->send($shopEmail, 'Les galets d’Ambre', '[Devis] '.$q->getReference().' – '.$q->getName(), $text, $html, new Address($q->getEmail(), $q->getName()));
+    }
+
+    /** Le devis chiffré, avec le lien de la page où régler l'acompte. */
+    public function sendQuote(QuoteRequest $q): bool
+    {
+        $amount = $this->eur(($q->getAmountCents() ?? 0) / 100);
+        $deposit = ($q->depositCents() ?? 0) > 0 ? $this->eur($q->depositCents() / 100) : null;
+        $url = rtrim($this->frontendUrl, '/').($q->getLang() === 'en' ? '/en/quote/' : '/devis/').$q->getPayToken();
+
+        $html = $this->layout('Votre devis '.$q->getReference(),
+            '<p>Bonjour '.$this->e($q->getName()).', voici mon devis pour votre projet de fresque.</p>'
+            .'<p style="font-size:20px"><strong>'.$amount.'</strong> <span style="font-size:13px;color:#6b5f50">TTC</span></p>'
+            .($q->getQuoteMessage() ? '<p style="white-space:pre-wrap;border-left:3px solid #e6d9c3;padding-left:12px">'.$this->e($q->getQuoteMessage()).'</p>' : '')
+            .($deposit !== null
+                ? '<p>Pour réserver votre créneau, un acompte de <strong>'.$deposit.'</strong> ('.$q->getDepositPercent().' %) est à régler en ligne :</p>'
+                  .'<p style="margin:24px 0"><a href="'.$this->e($url).'" style="background:#0f2a6b;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:600">Voir le devis et régler l’acompte</a></p>'
+                : '<p><a href="'.$this->e($url).'">Voir le devis en ligne</a></p>')
+            .'<p style="font-size:13px;color:#6b5f50">Une question, un ajustement à demander ? Répondez simplement à cet e-mail.</p>');
+        $text = "Bonjour {$q->getName()},\n\nVoici mon devis pour votre projet de fresque ({$q->getReference()}) : $amount TTC.\n"
+            .($q->getQuoteMessage() ? "\n{$q->getQuoteMessage()}\n" : '')
+            .($deposit !== null ? "\nAcompte à régler en ligne : $deposit ({$q->getDepositPercent()} %).\n" : '')
+            ."\nVoir le devis : $url\n";
+
+        return $this->send($q->getEmail(), $q->getName(), 'Votre devis '.$q->getReference(), $text, $html);
+    }
+
+    /** Acompte reçu : confirmation au client et alerte à la boutique. */
+    public function sendDepositReceived(QuoteRequest $q, string $shopEmail): bool
+    {
+        $deposit = $this->eur(($q->depositCents() ?? 0) / 100);
+        $html = $this->layout('Acompte reçu, merci !',
+            '<p>Bonjour '.$this->e($q->getName()).', j’ai bien reçu votre acompte de <strong>'.$deposit.'</strong> pour la fresque <strong>'.$q->getReference().'</strong>. Votre projet est réservé.</p>'
+            .'<p>Je vous écris très vite pour convenir ensemble des détails et de la date.</p>');
+        $ok = $this->send($q->getEmail(), $q->getName(), 'Acompte reçu – '.$q->getReference(), "Bonjour {$q->getName()},\n\nJ'ai bien reçu votre acompte de $deposit pour la fresque {$q->getReference()}. Votre projet est réservé : je vous écris très vite pour convenir des détails et de la date.\n", $html);
+
+        $this->send($shopEmail, 'Les galets d’Ambre', '[Acompte payé] '.$q->getReference().' – '.$deposit,
+            "Acompte de $deposit reçu pour le devis {$q->getReference()} ({$q->getName()} <{$q->getEmail()}>).\n",
+            $this->layout('Acompte payé : '.$q->getReference(), '<p><strong>'.$this->e($q->getName()).'</strong> &lt;'.$this->e($q->getEmail()).'&gt; a réglé l’acompte de <strong>'.$deposit.'</strong>.</p>'),
+            new Address($q->getEmail(), $q->getName()));
+
+        return $ok;
     }
 
     // « Mot de passe oublié » : lien vers la page du site ; le jeton est dans le FRAGMENT (#…), jamais envoyé à un serveur

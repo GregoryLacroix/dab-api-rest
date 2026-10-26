@@ -15,7 +15,7 @@ final class SiteContent
             'title' => 'Des paysages de mer peints sur pierre, des murs qui prennent vie.',
             'text' => 'Chaque galet est peint à la main et verni, chaque fresque est pensée pour votre mur. Choisissez une pièce unique ou demandez la vôtre.',
             'primaryLabel' => 'Voir la boutique', 'primaryTo' => '/produits',
-            'secondaryLabel' => 'Demander une fresque', 'secondaryTo' => '/produits?categorie=fresques',
+            'secondaryLabel' => 'Demander une fresque', 'secondaryTo' => '/devis',
         ],
         'marquee' => ['Peinture sur galet', 'Fresque murale', 'Boutique en ligne'],
         'story' => [
@@ -29,7 +29,7 @@ final class SiteContent
         'zoom' => ['lens' => true, 'lensLevel' => 2.5, 'fullLevel' => 2.5],
         'blocks' => [
             ['title' => 'Peinture sur galet', 'text' => 'Des galets ramassés, peints à l’acrylique, vernis pour durer. Chacun est unique.', 'cta' => 'Voir les galets', 'to' => '/produits?categorie=galets'],
-            ['title' => 'Fresque murale', 'text' => 'Intérieur ou extérieur : on échange sur votre projet, puis je peins sur place.', 'cta' => 'Demander un devis', 'to' => '/contact'],
+            ['title' => 'Fresque murale', 'text' => 'Intérieur ou extérieur : on échange sur votre projet, puis je peins sur place.', 'cta' => 'Demander un devis', 'to' => '/devis'],
         ],
         'contact' => [
             'title' => 'Contactez-nous',
