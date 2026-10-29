@@ -39,7 +39,8 @@ final class AppMailer
         return $this->send($user->getEmail(), $user->getName(), 'Confirmez votre adresse e-mail', $text, $html);
     }
 
-    public function sendOrderConfirmation(Order $order): bool
+    /** @param array{0: string, 1: string}|null $invoicePdf [contenu, nom du fichier] : facture jointe (commande payée) */
+    public function sendOrderConfirmation(Order $order, ?array $invoicePdf = null): bool
     {
         $paid = $order->getPaidAt() !== null;
         [$lines, $textLines] = $this->orderLines($order);
@@ -58,7 +59,7 @@ final class AppMailer
             ."\n$textLines\nTotal : $total\n"
             .($address === [] ? '' : "\nAdresse de livraison :\n".implode("\n", $address)."\n");
 
-        return $this->send($order->getCustomerEmail(), $order->getCustomerName(), 'Votre commande '.$order->getReference(), $text, $html);
+        return $this->send($order->getCustomerEmail(), $order->getCustomerName(), 'Votre commande '.$order->getReference(), $text, $html, null, $invoicePdf);
     }
 
     // Prévient la boutique qu'une commande vient d'être payée (à préparer et expédier)
@@ -267,19 +268,22 @@ final class AppMailer
     }
 
     // Remboursement effectué
-    public function sendRefund(Order $order): bool
+    /** @param array{0: string, 1: string}|null $creditNotePdf [contenu, nom du fichier] : avoir joint */
+    public function sendRefund(Order $order, ?array $creditNotePdf = null): bool
     {
         $amount = $this->eur($order->getTotalCents() / 100);
         $html = $this->layout('Votre commande a été remboursée',
             '<p>Bonjour '.$this->e($order->getCustomerName()).', nous avons remboursé votre commande <strong>'.$order->getReference().'</strong> : <strong>'.$amount.'</strong>.</p>'
             .'<p>Le montant revient sur votre moyen de paiement d’origine sous 5 à 10 jours ouvrés, selon votre banque.</p>'
+            .($creditNotePdf !== null ? '<p>Vous trouverez l’avoir correspondant en pièce jointe.</p>' : '')
             .'<p style="font-size:13px;color:#6b5f50">Une question ? Répondez simplement à cet e-mail.</p>');
         $text = "Bonjour {$order->getCustomerName()},\n\nNous avons remboursé votre commande {$order->getReference()} : $amount.\nLe montant revient sur votre moyen de paiement d'origine sous 5 à 10 jours ouvrés, selon votre banque.\n";
 
-        return $this->send($order->getCustomerEmail(), $order->getCustomerName(), 'Remboursement de votre commande '.$order->getReference(), $text, $html);
+        return $this->send($order->getCustomerEmail(), $order->getCustomerName(), 'Remboursement de votre commande '.$order->getReference(), $text, $html, null, $creditNotePdf);
     }
 
-    private function send(string $to, string $toName, string $subject, string $text, string $html, ?Address $replyTo = null): bool
+    /** @param array{0: string, 1: string}|null $pdf [contenu, nom du fichier] : PDF joint au message */
+    private function send(string $to, string $toName, string $subject, string $text, string $html, ?Address $replyTo = null, ?array $pdf = null): bool
     {
         try {
             $email = (new Email())
@@ -288,6 +292,9 @@ final class AppMailer
                 ->subject($subject)->text($text)->html($html);
             if ($replyTo !== null) {
                 $email->replyTo($replyTo);
+            }
+            if ($pdf !== null) {
+                $email->attach($pdf[0], $pdf[1], 'application/pdf');
             }
             $this->mailer->send($email);
 

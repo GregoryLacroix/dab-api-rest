@@ -65,6 +65,7 @@ Connexion limitée à 5 essais / 15 min.
 | GET | `/api/auth/oauth/{google\|facebook}/callback` | fournisseur | Retour du fournisseur, puis redirection vers le React : `/connexion/retour#token=…` ou `/connexion?oauth=<raison>` |
 | GET | `/api/auth/me/orders` | Connecté | Mes commandes (liées au compte ou passées avec mon adresse e-mail), sans les paiements abandonnés |
 | GET | `/api/orders/{CMD-1001}/invoice` | Connecté (propriétaire ou admin) | Facture PDF d'une commande payée |
+| GET | `/api/orders/{CMD-1001}/credit-note` | Connecté (propriétaire ou admin) | Avoir PDF d'une commande remboursée |
 | POST | `/api/auth/forgot-password` | public | `{ email }` : envoie un lien de réinitialisation (réponse identique que le compte existe ou non) |
 | POST | `/api/auth/reset-password` | public (jeton du lien) | `{ token, password, confirm }` : nouveau mot de passe, ferme toutes les sessions |
 | PATCH | `/api/orders/{CMD-1001}/status` | Admin | `{ status, tracking?: { carrier, number, url? }, notify? }` : « expédiée » enregistre le suivi et prévient le client |
@@ -94,6 +95,12 @@ Connexion limitée à 5 essais / 15 min.
 
 Listes : `{ "data": [...], "meta": { "page", "perPage", "total", "pageCount" } }` (`perPage` de 1 à 100).
 Les statuts de commande : `en attente`, `payée`, `expédiée`, `livrée`, `annulée`.
+
+## Avoirs (remboursements)
+Quand une commande est **remboursée en totalité** (bouton « Rembourser » du back-office, ou remboursement total fait depuis le tableau de bord Stripe), le site établit automatiquement un **avoir** : une facture négative qui annule la facture d'origine, numérotée dans une **série à part, continue et sans trou** (`AV-2026-0001`, un compteur par année). Il est **joint à l'e-mail de remboursement** envoyé au client, téléchargeable depuis *Mon compte* (« Télécharger l'avoir ») et depuis la page *Commandes* du back-office (« Avoir PDF »). La facture d'origine reste consultable : l'avoir la neutralise. La **facture** est aussi jointe à l'e-mail de confirmation de commande.
+- Les commandes remboursées **avant** cette version reçoivent leur avoir au premier téléchargement.
+- **Limites** : les remboursements **partiels** (faits depuis Stripe) ne sont pas gérés : la commande garde son statut et aucun avoir n'est établi (à faire à la main avec votre comptable) ; l'avoir est en français ; comme pour les factures, faites valider le modèle par votre comptable.
+- Après mise à jour : `php bin/console doctrine:schema:update --force --env=prod` (colonnes `credit_note_number`, `credit_noted_at`) et `cache:clear`.
 
 ## Devis de fresque (demande, devis chiffré, acompte)
 1. **Demande** : la page `/devis` du site (anglais `/en/quote`) collecte projet, dimensions, lieu, budget et jusqu'à 4 photos du mur. Elle est enregistrée (référence `DEV-1001`…), **vous recevez un e-mail** avec les détails et les liens des photos (répondre écrit directement au client), et le client reçoit un accusé de réception.

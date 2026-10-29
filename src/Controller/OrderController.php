@@ -168,15 +168,7 @@ final class OrderController extends ApiController
     #[IsGranted('IS_AUTHENTICATED_FULLY')]
     public function invoice(string $ref): Response
     {
-        $order = $this->find($ref);
-        $user = $this->getUser();
-        $owner = $user instanceof User && (
-            $order->getUser()?->getId() === $user->getId()
-            || ($user->isVerified() && mb_strtolower($order->getCustomerEmail()) === mb_strtolower($user->getEmail()))
-        );
-        if (!$owner && !$this->isGranted('ROLE_ADMIN')) {
-            throw new NotFoundHttpException();
-        }
+        $order = $this->findAccessible($ref);
         if (!$order->isInvoiceable()) {
             throw new ConflictHttpException('Aucune facture n’est disponible pour cette commande (non payée, annulée ou remboursée).');
         }
@@ -189,6 +181,41 @@ final class OrderController extends ApiController
             'Cache-Control' => 'private, no-store',
             'X-Content-Type-Options' => 'nosniff',
         ]);
+    }
+
+    // Avoir PDF d'une commande remboursée (annule la facture) : mêmes droits d'accès que la facture
+    #[Route('/{ref}/credit-note', name: 'api_orders_credit_note', requirements: ['ref' => 'CMD-\d+'], methods: ['GET'])]
+    #[IsGranted('IS_AUTHENTICATED_FULLY')]
+    public function creditNote(string $ref): Response
+    {
+        $order = $this->findAccessible($ref);
+        if (!$order->isCreditNoteable()) {
+            throw new ConflictHttpException('Aucun avoir pour cette commande (elle n’a pas été remboursée).');
+        }
+        $pdf = $this->invoices->renderCreditNote($order);
+
+        return new Response($pdf, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => HeaderUtils::makeDisposition(HeaderUtils::DISPOSITION_ATTACHMENT, $this->invoices->creditNoteFileName($order)),
+            'Cache-Control' => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    /** Commande de la personne connectée (compte lié ou même adresse e-mail vérifiée), ou n'importe laquelle pour un administrateur ; sinon « introuvable ». */
+    private function findAccessible(string $ref): Order
+    {
+        $order = $this->find($ref);
+        $user = $this->getUser();
+        $owner = $user instanceof User && (
+            $order->getUser()?->getId() === $user->getId()
+            || ($user->isVerified() && mb_strtolower($order->getCustomerEmail()) === mb_strtolower($user->getEmail()))
+        );
+        if (!$owner && !$this->isGranted('ROLE_ADMIN')) {
+            throw new NotFoundHttpException();
+        }
+
+        return $order;
     }
 
     private function find(string $ref): Order

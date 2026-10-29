@@ -54,6 +54,13 @@ class Order
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $refundedAt = null;
 
+    // Avoir : établi quand la commande est remboursée (facture négative qui annule la facture d'origine). Série à part : AV-2026-0001…
+    #[ORM\Column(length: 30, nullable: true, unique: true)]
+    private ?string $creditNoteNumber = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $creditNotedAt = null;
+
     // Expédition : transporteur, numéro et lien de suivi, saisis dans le back-office au passage à « expédiée »
     #[ORM\Column(length: 40, nullable: true)]
     private ?string $carrier = null;
@@ -111,6 +118,14 @@ class Order
     public function setPaidAt(?\DateTimeImmutable $at): static { $this->paidAt = $at; return $this; }
     public function getRefundedAt(): ?\DateTimeImmutable { return $this->refundedAt; }
     public function setRefundedAt(?\DateTimeImmutable $at): static { $this->refundedAt = $at; return $this; }
+    public function getCreditNoteNumber(): ?string { return $this->creditNoteNumber; }
+    public function getCreditNotedAt(): ?\DateTimeImmutable { return $this->creditNotedAt; }
+    public function setCreditNote(string $number, \DateTimeImmutable $at): static { $this->creditNoteNumber = $number; $this->creditNotedAt = $at; return $this; }
+    /** Un avoir existe (ou peut être établi) pour une commande payée puis remboursée. */
+    public function isCreditNoteable(): bool
+    {
+        return $this->refundedAt !== null && ($this->paidAt !== null || $this->invoiceNumber !== null);
+    }
     public function getCarrier(): ?string { return $this->carrier; }
     public function getTrackingNumber(): ?string { return $this->trackingNumber; }
     public function getTrackingUrl(): ?string { return $this->trackingUrl; }
@@ -131,6 +146,10 @@ class Order
     /** Une facture existe pour une commande payée (et non remboursée / annulée) */
     public function isInvoiceable(): bool
     {
+        if ($this->invoiceNumber !== null) {
+            return true; // facture déjà émise : elle reste consultable, même remboursée (l'avoir l'annule)
+        }
+
         return \in_array($this->status, [OrderStatus::Paid, OrderStatus::Shipped, OrderStatus::Delivered], true) && $this->refundedAt === null;
     }
     public function getShippingAddress(): ?array { return $this->shippingAddress; }
@@ -154,6 +173,7 @@ class Order
             ],
             'shipping' => $this->shippingAddress,
             'invoice' => ['available' => $this->isInvoiceable(), 'number' => $this->invoiceNumber],
+            'creditNote' => ['available' => $this->isCreditNoteable(), 'number' => $this->creditNoteNumber],
             'tracking' => ($this->trackingNumber === null && $this->shippedAt === null) ? null : [
                 'carrier' => $this->carrier,
                 'number' => $this->trackingNumber,

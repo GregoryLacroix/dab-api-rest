@@ -136,7 +136,14 @@ final class PaymentService
         $this->em->flush();
         $this->invoices->ensureNumber($order); // numéro de facture attribué au moment du paiement (ordre chronologique)
 
-        $this->mailer->sendOrderConfirmation($order);
+        // La facture est jointe à l'e-mail de confirmation ; si elle ne peut pas être générée, le message part quand même sans pièce jointe
+        $invoicePdf = null;
+        try {
+            $invoicePdf = [$this->invoices->render($order), $this->invoices->fileName($order)];
+        } catch (\Throwable $e) {
+            $this->logger->warning('Facture non jointe à l’e-mail ('.$e->getMessage().')', ['order' => $order->getReference()]);
+        }
+        $this->mailer->sendOrderConfirmation($order, $invoicePdf);
         $this->mailer->sendNewOrderNotification($order, $this->shopEmail);
     }
 
@@ -178,7 +185,14 @@ final class PaymentService
             if (!$shipped) {
                 $this->stock->release($order); // colis pas encore parti : la pièce est de nouveau en vente
             }
-            $this->mailer->sendRefund($order);
+            // Avoir (numéroté, série à part) établi au remboursement et joint à l'e-mail du client
+            $creditPdf = null;
+            try {
+                $creditPdf = [$this->invoices->renderCreditNote($order), $this->invoices->creditNoteFileName($order)];
+            } catch (\Throwable $e) {
+                $this->logger->error('Avoir non généré ('.$e->getMessage().')', ['order' => $order->getReference()]);
+            }
+            $this->mailer->sendRefund($order, $creditPdf);
         }
     }
 
