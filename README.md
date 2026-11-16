@@ -66,6 +66,12 @@ Connexion limitée à 5 essais / 15 min.
 | GET | `/api/auth/me/orders` | Connecté | Mes commandes (liées au compte ou passées avec mon adresse e-mail), sans les paiements abandonnés |
 | GET | `/api/orders/{CMD-1001}/invoice` | Connecté (propriétaire ou admin) | Facture PDF d'une commande payée |
 | GET | `/api/orders/{CMD-1001}/credit-note` | Connecté (propriétaire ou admin) | Avoir PDF d'une commande remboursée |
+| GET | `/api/auth/2fa` | Connecté | État de la double authentification `{ enabled, enabledAt, recoveryCodesLeft }` |
+| POST | `/api/auth/2fa/setup` | Connecté | `{ password? }` → `{ secret, otpauthUrl }` (secret « en attente ») |
+| POST | `/api/auth/2fa/enable` | Connecté | `{ code }` → active et renvoie `{ recoveryCodes }` (affichés une seule fois) |
+| POST | `/api/auth/2fa/disable` | Connecté | `{ password?, code }` : mot de passe ET code exigés |
+| POST | `/api/auth/2fa/recovery-codes` | Connecté | `{ password?, code }` → nouveaux codes de secours |
+| POST | `/api/auth/2fa/verify` | public (challenge) | `{ challenge, code }` : 2e étape de la connexion → jeton (comme `/api/auth/login`) |
 | POST | `/api/auth/forgot-password` | public | `{ email }` : envoie un lien de réinitialisation (réponse identique que le compte existe ou non) |
 | POST | `/api/auth/reset-password` | public (jeton du lien) | `{ token, password, confirm }` : nouveau mot de passe, ferme toutes les sessions |
 | PATCH | `/api/orders/{CMD-1001}/status` | Admin | `{ status, tracking?: { carrier, number, url? }, notify? }` : « expédiée » enregistre le suivi et prévient le client |
@@ -95,6 +101,15 @@ Connexion limitée à 5 essais / 15 min.
 
 Listes : `{ "data": [...], "meta": { "page", "perPage", "total", "pageCount" } }` (`perPage` de 1 à 100).
 Les statuts de commande : `en attente`, `payée`, `expédiée`, `livrée`, `annulée`.
+
+## Double authentification (TOTP)
+Chaque compte peut activer une **double authentification** par application (Google Authenticator, Microsoft Authenticator, Authy, 1Password…) depuis *Mon compte → Double authentification* : mot de passe confirmé, QR code à scanner, premier code saisi, puis **10 codes de secours** affichés une seule fois. **Recommandée pour les administrateurs** : tant qu'elle n'est pas activée, le tableau de bord affiche un bandeau.
+- **Connexion** : si elle est activée, le mot de passe (ou Google) ne suffit plus : l'API ne remet **aucun jeton**, mais un « challenge » signé de 5 minutes ; le site demande le code, puis `POST /api/auth/2fa/verify` ouvre la session. Cela vaut pour la connexion du site, celle du back-office **et la connexion Google** (qui ne contourne pas la double authentification).
+- **Sécurité** : codes TOTP standard (RFC 6238, 6 chiffres, 30 s, ±1 période) ; un code déjà utilisé est refusé ; 8 essais / 15 min par compte et par adresse IP ; secret **chiffré en base** (clé dérivée d'`APP_SECRET`) ; codes de secours conservés sous forme d'empreintes, à usage unique ; désactiver ou régénérer les codes exige le mot de passe ET un code. Un mot de passe réinitialisé ne désactive pas la double authentification.
+- **⚠ `APP_SECRET`** : ne le changez pas sans avoir désactivé la double authentification de vos comptes, sinon les secrets deviennent illisibles.
+- **Téléphone ET codes de secours perdus** (accès SSH au serveur) : `php bin/console app:disable-2fa adresse@exemple.fr` désactive la double authentification de ce compte, qui peut la réactiver ensuite.
+- **Mise à jour** : `php bin/console doctrine:schema:update --force --env=prod` (colonnes `totp_secret`, `totp_enabled_at`, `totp_last_step`, `recovery_codes` sur `app_user`) puis `cache:clear`. L'extension PHP *sodium* (incluse dans PHP depuis la 7.2) est utilisée pour le chiffrement.
+- **Limites** : un seul appareil/secret par compte ; pas de e-mail d'alerte à l'activation ou à la désactivation (à demander si besoin).
 
 ## Avoirs (remboursements)
 Quand une commande est **remboursée en totalité** (bouton « Rembourser » du back-office, ou remboursement total fait depuis le tableau de bord Stripe), le site établit automatiquement un **avoir** : une facture négative qui annule la facture d'origine, numérotée dans une **série à part, continue et sans trou** (`AV-2026-0001`, un compteur par année). Il est **joint à l'e-mail de remboursement** envoyé au client, téléchargeable depuis *Mon compte* (« Télécharger l'avoir ») et depuis la page *Commandes* du back-office (« Avoir PDF »). La facture d'origine reste consultable : l'avoir la neutralise. La **facture** est aussi jointe à l'e-mail de confirmation de commande.

@@ -6,6 +6,7 @@ use App\Service\ApiTokenService;
 use App\Service\EmailVerificationService;
 use App\Service\OAuthFailure;
 use App\Service\OAuthService;
+use App\Service\TwoFactorService;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Cookie;
@@ -25,14 +26,15 @@ final class OAuthController extends ApiController
     private const COOKIE_PATH = '/api/auth/oauth';
     // Adresses du site React par langue (miroir de src/i18n/routes.js côté React)
     private const FRONT = [
-        'fr' => ['login' => '/connexion', 'back' => '/connexion/retour'],
-        'en' => ['login' => '/en/login', 'back' => '/en/login/callback'],
+        'fr' => ['login' => '/connexion', 'back' => '/connexion/retour', 'verify' => '/connexion/verification'],
+        'en' => ['login' => '/en/login', 'back' => '/en/login/callback', 'verify' => '/en/login/verification'],
     ];
 
     public function __construct(
         private readonly OAuthService $oauth,
         private readonly ApiTokenService $tokens,
         private readonly EmailVerificationService $verification,
+        private readonly TwoFactorService $twoFactor,
         private readonly LoggerInterface $logger,
         #[Autowire(service: 'limiter.oauth')] private readonly RateLimiterFactory $limiter,
         #[Autowire('%env(FRONTEND_URL)%')] private readonly string $frontendUrl,
@@ -101,6 +103,14 @@ final class OAuthController extends ApiController
             $this->verification->issueAndSend($user);
 
             return $this->back($lang, 'verify_email');
+        }
+
+        // Double authentification : Google ne dispense pas du code. Le site reçoit un « challenge » (fragment de l'adresse) et demande le code.
+        if ($this->twoFactor->isEnabled($user)) {
+            $response = new RedirectResponse(rtrim($this->frontendUrl, '/').self::FRONT[$lang]['verify'].'#challenge='.$this->twoFactor->issueChallenge($user));
+            $this->harden($response);
+
+            return $response;
         }
 
         $issued = $this->tokens->issue($user);

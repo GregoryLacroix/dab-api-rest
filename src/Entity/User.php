@@ -40,6 +40,21 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $verificationExpiresAt = null;
 
+    // --- Double authentification (TOTP). Secret chiffré (SecretBox) ; « en attente » tant que totpEnabledAt est vide.
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $totpSecret = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $totpEnabledAt = null;
+
+    // Dernier pas de temps accepté : un code déjà utilisé ne sert pas deux fois
+    #[ORM\Column(nullable: true)]
+    private ?int $totpLastStep = null;
+
+    /** @var string[]|null empreintes des codes de secours restants (usage unique) ; colonne facultative pour ne pas bloquer la mise à jour de la base */
+    #[ORM\Column(type: Types::JSON, nullable: true)]
+    private ?array $recoveryCodes = null;
+
     // Réinitialisation du mot de passe : seul le hash (SHA-256) du jeton est conservé, valable 1 heure
     #[ORM\Column(length: 64, nullable: true)]
     private ?string $resetHash = null;
@@ -79,6 +94,14 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     public function isVerified(): bool { return $this->verified; }
     public function setVerified(bool $verified): static { $this->verified = $verified; return $this; }
+    public function getTotpSecret(): ?string { return $this->totpSecret; }
+    public function setTotpSecret(?string $secret): static { $this->totpSecret = $secret; return $this; }
+    public function getTotpEnabledAt(): ?\DateTimeImmutable { return $this->totpEnabledAt; }
+    public function setTotpEnabledAt(?\DateTimeImmutable $at): static { $this->totpEnabledAt = $at; return $this; }
+    public function getTotpLastStep(): ?int { return $this->totpLastStep; }
+    public function setTotpLastStep(?int $step): static { $this->totpLastStep = $step; return $this; }
+    public function getRecoveryCodes(): array { return $this->recoveryCodes ?? []; }
+    public function setRecoveryCodes(array $hashes): static { $this->recoveryCodes = array_values($hashes); return $this; }
     public function getResetHash(): ?string { return $this->resetHash; }
     public function setResetHash(?string $hash): static { $this->resetHash = $hash; return $this; }
     public function getResetExpiresAt(): ?\DateTimeImmutable { return $this->resetExpiresAt; }
@@ -100,6 +123,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
             'isAdmin' => $this->isAdmin(),
             'verified' => $this->verified,
             'hasPassword' => $this->hasPassword(),
+            'twoFactor' => $this->totpEnabledAt !== null,
         ];
     }
 }
