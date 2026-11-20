@@ -18,6 +18,10 @@ class Category
     #[ORM\Column(length: 120)]
     private string $name = '';
 
+    // Nom anglais (facultatif)
+    #[ORM\Column(length: 120, nullable: true)]
+    private ?string $nameEn = null;
+
     #[ORM\Column]
     private int $position = 0;
 
@@ -34,6 +38,8 @@ class Category
     public function setId(string $id): static { $this->id = $id; return $this; }
     public function getName(): string { return $this->name; }
     public function setName(string $name): static { $this->name = $name; return $this; }
+    public function getNameEn(): ?string { return $this->nameEn; }
+    public function setNameEn(?string $v): static { $this->nameEn = $v === null || $v === '' ? null : $v; return $this; }
     public function getPosition(): int { return $this->position; }
     public function setPosition(int $position): static { $this->position = $position; return $this; }
 
@@ -43,6 +49,7 @@ class Category
     /** Forme exposée au React ({ id, name }) + nombre de produits */
     public function toArray(): array
     {
-        return ['id' => $this->id, 'name' => $this->name, 'productCount' => $this->products->count()];
+        return ['id' => $this->id, 'name' => $this->name, 'productCount' => $this->products->count()]
+            + ($this->nameEn === null ? [] : ['translations' => ['en' => ['name' => $this->nameEn]]]);
     }
 }

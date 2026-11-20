@@ -48,6 +48,13 @@ final class ProductInput
     #[Assert\Range(min: 1, max: 500000, notInRangeMessage: 'Poids invalide (de 1 à 500 000 g).')]
     public ?int $weightG = null;
 
+    // Traduction anglaise facultative : { translations: { en: { name, description } } }
+    #[Assert\Length(max: 160, maxMessage: 'Le nom anglais est trop long (160 caractères maximum).')]
+    public ?string $nameEn = null;
+
+    #[Assert\Length(max: 5000, maxMessage: 'La description anglaise est trop longue (5000 caractères maximum).')]
+    public ?string $descriptionEn = null;
+
     /** @var array<int, mixed> */
     public array $images = [];
 
@@ -68,6 +75,9 @@ final class ProductInput
             $in->stock = (is_int($stock) || (is_string($stock) && ctype_digit(trim($stock)))) ? (int) $stock : -1;
         }
 
+        $en = is_array($d['translations']['en'] ?? null) ? $d['translations']['en'] : [];
+        $in->nameEn = is_string($en['name'] ?? null) && trim($en['name']) !== '' ? trim($en['name']) : null;
+        $in->descriptionEn = is_string($en['description'] ?? null) && trim($en['description']) !== '' ? trim($en['description']) : null;
         $in->sizeLabel = isset($d['sizeLabel']) && is_string($d['sizeLabel']) && trim($d['sizeLabel']) !== '' ? trim($d['sizeLabel']) : null;
         foreach (['widthCm', 'heightCm', 'depthCm'] as $k) {
             $in->$k = self::num($d[$k] ?? null);

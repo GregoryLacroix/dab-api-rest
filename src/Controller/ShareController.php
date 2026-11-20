@@ -31,8 +31,10 @@ final class ShareController
         }
 
         $url = $front.($lang === 'en' ? '/en/shop/' : '/produits/').$id;
-        $title = $product->getName();
-        $description = trim(mb_strimwidth(preg_replace('/\s+/', ' ', $product->getDescription()) ?? '', 0, 200, '…'));
+        // Aperçu en anglais : texte anglais s'il est renseigné, sinon le français
+        $title = ($lang === 'en' ? $product->getNameEn() : null) ?? $product->getName();
+        $text = ($lang === 'en' ? $product->getDescriptionEn() : null) ?? $product->getDescription();
+        $description = trim(mb_strimwidth(preg_replace('/\s+/', ' ', $text) ?? '', 0, 200, '…'));
         if ($description === '') {
             $description = $lang === 'en' ? 'Hand-painted pebble, unique piece.' : 'Galet peint à la main, pièce unique.';
         }

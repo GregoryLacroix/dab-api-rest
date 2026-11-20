@@ -44,6 +44,7 @@ final class CategoryController extends ApiController
         $category = (new Category())
             ->setId($this->uniqueId($input->name))
             ->setName($input->name)
+            ->setNameEn($input->nameEn)
             ->setPosition($this->categories->nextPosition());
         $this->em->persist($category);
         $this->em->flush();
@@ -61,6 +62,10 @@ final class CategoryController extends ApiController
             throw new ValidationFailedException(['name' => 'Cette catégorie existe déjà.']);
         }
         $category->setName($input->name);
+        // PATCH sans « translations » : le nom anglais existant est conservé
+        if (array_key_exists('translations', $this->body($request))) {
+            $category->setNameEn($input->nameEn);
+        }
         $this->em->flush();
 
         return new JsonResponse($category->toArray());

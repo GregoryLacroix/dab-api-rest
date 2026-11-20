@@ -10,10 +10,17 @@ final class CategoryInput
     #[Assert\Length(max: 120, maxMessage: 'Le nom est trop long (120 caractères maximum).')]
     public string $name = '';
 
+    // Nom anglais facultatif : { name, translations: { en: { name } } }
+    #[Assert\Length(max: 120, maxMessage: 'Le nom anglais est trop long (120 caractères maximum).')]
+    public ?string $nameEn = null;
+
     public static function fromArray(array $d): self
     {
         $in = new self();
         $in->name = is_string($d['name'] ?? null) ? trim($d['name']) : '';
+
+        $en = $d['translations']['en']['name'] ?? null;
+        $in->nameEn = is_string($en) && trim($en) !== '' ? trim($en) : null;
 
         return $in;
     }

@@ -229,6 +229,9 @@ Chaque produit peut avoir, **facultativement** : `sizeLabel` (taille en texte li
 - **Routes** : `GET /api/products/{id}/reviews` (public : avis publiés, `summary` = moyenne, total, répartition par étoile) ; `GET /api/products/{id}/reviews/mine` (puis-je donner mon avis ?) ; `POST /api/products/{id}/reviews` `{ rating 1-5, title?, body 10-2000 caractères }` (10 dépôts par heure et par compte) ; `DELETE /api/reviews/{id}` (supprimer le sien) ; admin : `GET /api/admin/reviews?status=pending|approved|rejected&q=`, `PATCH /api/admin/reviews/{id}` `{ status?, reply? }`, `DELETE /api/admin/reviews/{id}`.
 - Les pages produit affichent la note moyenne dans les résultats Google (`aggregateRating`) dès qu'il y a au moins un avis publié.
 
+## Traduction anglaise des produits et catégories
+Produits : champs `Name (anglais)` et `Description (anglais)` dans la fiche produit du back-office ; catégories : « Nom anglais » à la création et à la modification. Facultatifs : ce qui est vide s'affiche en français sur le site anglais. L'API les renvoie sous la forme `translations: { en: { name, description } }` (clé absente si rien n'est renseigné), que le React applique tout seul. Les aperçus de partage (`/api/share/products/{id}?lang=en`) utilisent aussi le texte anglais. Colonnes ajoutées : `product.name_en`, `product.description_en`, `category.name_en` (`doctrine:schema:update --force`).
+
 ## Mise à jour de la base (caractéristiques, avis)
 `php bin/console doctrine:schema:update --force --env=prod` ajoute les colonnes `product.size_label`, `width_cm`, `height_cm`, `depth_cm`, `weight_g` et la table `review`. Puis `php bin/console cache:clear --env=prod`. Les produits existants gardent des caractéristiques vides.
 

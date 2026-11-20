@@ -34,6 +34,13 @@ class Product
     #[ORM\Column(options: ['default' => 1])]
     private int $stock = 1;
 
+    // Traduction anglaise (facultative) : sans elle, le site anglais affiche le texte français
+    #[ORM\Column(length: 160, nullable: true)]
+    private ?string $nameEn = null;
+
+    #[ORM\Column(type: Types::TEXT, nullable: true)]
+    private ?string $descriptionEn = null;
+
     // Caractéristiques (toutes facultatives) : taille libre (« Ø 8 cm », « Moyen »), dimensions en cm, poids en grammes
     #[ORM\Column(length: 60, nullable: true)]
     private ?string $sizeLabel = null;
@@ -75,6 +82,24 @@ class Product
     public function setPublished(bool $published): static { $this->published = $published; return $this; }
     public function getStock(): int { return $this->stock; }
     public function setStock(int $stock): static { $this->stock = max(0, $stock); return $this; }
+    public function getNameEn(): ?string { return $this->nameEn; }
+    public function getDescriptionEn(): ?string { return $this->descriptionEn; }
+    public function setEnglish(?string $name, ?string $description): static
+    {
+        $this->nameEn = $name === null || $name === '' ? null : $name;
+        $this->descriptionEn = $description === null || $description === '' ? null : $description;
+
+        return $this;
+    }
+
+    /** Textes anglais renseignés, sous la forme attendue par le React : { en: { name?, description? } } ; [] si aucun */
+    public function translations(): array
+    {
+        $en = array_filter(['name' => $this->nameEn, 'description' => $this->descriptionEn], static fn ($v) => $v !== null);
+
+        return $en === [] ? [] : ['en' => $en];
+    }
+
     public function getSizeLabel(): ?string { return $this->sizeLabel; }
     public function setSizeLabel(?string $v): static { $this->sizeLabel = $v === '' ? null : $v; return $this; }
     public function getWidthCm(): ?float { return $this->widthCm; }
@@ -105,6 +130,6 @@ class Product
             'depthCm' => $this->depthCm,
             'weightG' => $this->weightG,
             'images' => $this->images,
-        ];
+        ] + ($this->translations() === [] ? [] : ['translations' => $this->translations()]);
     }
 }
