@@ -9,6 +9,7 @@ use App\Entity\User;
 use App\Repository\ApiTokenRepository;
 use App\Repository\ContactMessageRepository;
 use App\Repository\QuoteRequestRepository;
+use App\Repository\ReviewRepository;
 use App\Service\QuoteService;
 use App\Entity\QuoteRequest;
 use App\Repository\OAuthIdentityRepository;
@@ -36,6 +37,7 @@ final class AccountController extends ApiController
         private readonly ApiTokenRepository $tokens,
         private readonly UserPasswordHasherInterface $hasher,
         private readonly OAuthIdentityRepository $identities,
+        private readonly ReviewRepository $reviews,
     ) {
     }
 
@@ -69,6 +71,7 @@ final class AccountController extends ApiController
             'orders' => array_map(fn (Order $o) => $o->toArray(), $this->orders->findForPerson($user)),
             'messages' => array_map(fn (ContactMessage $m) => $m->toArray(), $this->messages->findByEmail($user->getEmail())),
             'quotes' => array_map(fn (QuoteRequest $q) => $q->toArray(), $this->quotes->findByEmail($user->getEmail())),
+            'reviews' => array_map(fn ($r) => $r->toArray(), $this->reviews->findForUser($user)),
         ], 200, ['Cache-Control' => 'no-store']);
     }
 
@@ -100,6 +103,7 @@ final class AccountController extends ApiController
         $this->messages->deleteByEmail($user->getEmail());
         // Demandes de devis et leurs photos supprimées ; celles dont l'acompte est réglé sont conservées (pièce comptable, comme les commandes)
         $this->quoteService->purge(array_values(array_filter($this->quotes->findByEmail($user->getEmail()), static fn (QuoteRequest $q) => $q->getDepositPaidAt() === null)));
+        $this->reviews->deleteForUser($user);
         $this->orders->detachUser($user);
         $this->tokens->deleteForUser($user);
         $this->identities->deleteForUser($user);

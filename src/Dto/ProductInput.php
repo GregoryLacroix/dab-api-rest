@@ -32,6 +32,22 @@ final class ProductInput
     #[Assert\Range(min: 0, max: 9999, notInRangeMessage: 'Quantité en stock invalide (de 0 à 9999).')]
     public ?int $stock = null;
 
+    // Caractéristiques facultatives (null = non renseigné)
+    #[Assert\Length(max: 60, maxMessage: 'La taille est trop longue (60 caractères maximum).')]
+    public ?string $sizeLabel = null;
+
+    #[Assert\Range(min: 0.1, max: 1000, notInRangeMessage: 'Largeur invalide (de 0,1 à 1000 cm).')]
+    public ?float $widthCm = null;
+
+    #[Assert\Range(min: 0.1, max: 1000, notInRangeMessage: 'Hauteur invalide (de 0,1 à 1000 cm).')]
+    public ?float $heightCm = null;
+
+    #[Assert\Range(min: 0.1, max: 1000, notInRangeMessage: 'Épaisseur invalide (de 0,1 à 1000 cm).')]
+    public ?float $depthCm = null;
+
+    #[Assert\Range(min: 1, max: 500000, notInRangeMessage: 'Poids invalide (de 1 à 500 000 g).')]
+    public ?int $weightG = null;
+
     /** @var array<int, mixed> */
     public array $images = [];
 
@@ -52,7 +68,27 @@ final class ProductInput
             $in->stock = (is_int($stock) || (is_string($stock) && ctype_digit(trim($stock)))) ? (int) $stock : -1;
         }
 
+        $in->sizeLabel = isset($d['sizeLabel']) && is_string($d['sizeLabel']) && trim($d['sizeLabel']) !== '' ? trim($d['sizeLabel']) : null;
+        foreach (['widthCm', 'heightCm', 'depthCm'] as $k) {
+            $in->$k = self::num($d[$k] ?? null);
+        }
+        $w = self::num($d['weightG'] ?? null);
+        $in->weightG = $w === null ? null : (int) round($w);
+
         return $in;
+    }
+
+    /** Nombre facultatif : vide/null -> null ; texte non numérique -> -1 (refusé par la contrainte de plage) */
+    private static function num(mixed $v): ?float
+    {
+        if ($v === null || $v === '') {
+            return null;
+        }
+        if (is_string($v)) {
+            $v = str_replace(',', '.', trim($v));
+        }
+
+        return is_numeric($v) ? round((float) $v, 1) : -1.0;
     }
 
     /** Photos : { src } (URL, chemin ou image encodée) ou { tone } (visuel bleu provisoire), + alt */

@@ -45,7 +45,7 @@ final class SiteContent
             'deliveryDelay' => '1 à 2 semaines après la commande pour les galets en stock',
             'shippingTerms' => 'Les frais de livraison sont indiqués avant la validation de la commande.',
         ],
-        'footer' => ['text' => 'Les galets d’Ambre – Peinture sur galets & fresque murale'],
+        'footer' => ['text' => 'Les galets d’Ambre – Peinture sur galets & décoration murale'],
     ];
 
     private const KEY = 'content';

@@ -8,6 +8,7 @@ use App\Repository\CategoryRepository;
 use App\Repository\ContactMessageRepository;
 use App\Repository\OrderRepository;
 use App\Repository\ProductRepository;
+use App\Repository\ReviewRepository;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
@@ -17,7 +18,7 @@ final class AdminStatsController extends ApiController
 {
     #[Route('/api/admin/stats', name: 'api_admin_stats', methods: ['GET'])]
     #[IsGranted('ROLE_ADMIN')]
-    public function stats(ProductRepository $products, CategoryRepository $categories, OrderRepository $orders, ContactMessageRepository $messages): JsonResponse
+    public function stats(ProductRepository $products, CategoryRepository $categories, OrderRepository $orders, ContactMessageRepository $messages, ReviewRepository $reviews): JsonResponse
     {
         $recent = $orders->search(null, null)->setMaxResults(5)->getQuery()->getResult();
 
@@ -29,6 +30,7 @@ final class AdminStatsController extends ApiController
                 'toHandle' => $orders->countToHandle(),
             ],
             'messages' => ['total' => $messages->count([]), 'unread' => $messages->count(['isRead' => false])],
+            'reviews' => ['pending' => $reviews->countPending()],
             'revenue' => Money::fromCents($orders->revenueCents()),
             'recentOrders' => array_map(fn (Order $o) => $o->toArray(), $recent),
         ]);

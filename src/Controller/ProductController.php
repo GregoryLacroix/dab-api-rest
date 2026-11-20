@@ -104,6 +104,11 @@ final class ProductController extends ApiController
             ->setPriceCents(Money::toCents($input->price))
             ->setDescription($input->description)
             ->setPublished($input->published)
+            ->setSizeLabel($input->sizeLabel)
+            ->setWidthCm($input->widthCm)
+            ->setHeightCm($input->heightCm)
+            ->setDepthCm($input->depthCm)
+            ->setWeightG($input->weightG)
             ->setImages($input->cleanImages());
         if ($input->stock !== null) {
             $product->setStock($input->stock);

@@ -34,6 +34,22 @@ class Product
     #[ORM\Column(options: ['default' => 1])]
     private int $stock = 1;
 
+    // Caractéristiques (toutes facultatives) : taille libre (« Ø 8 cm », « Moyen »), dimensions en cm, poids en grammes
+    #[ORM\Column(length: 60, nullable: true)]
+    private ?string $sizeLabel = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?float $widthCm = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?float $heightCm = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?float $depthCm = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?int $weightG = null;
+
     /** @var array<int, array{src?: string, tone?: string, alt: string}> */
     #[ORM\Column(type: Types::JSON)]
     private array $images = [];
@@ -59,6 +75,16 @@ class Product
     public function setPublished(bool $published): static { $this->published = $published; return $this; }
     public function getStock(): int { return $this->stock; }
     public function setStock(int $stock): static { $this->stock = max(0, $stock); return $this; }
+    public function getSizeLabel(): ?string { return $this->sizeLabel; }
+    public function setSizeLabel(?string $v): static { $this->sizeLabel = $v === '' ? null : $v; return $this; }
+    public function getWidthCm(): ?float { return $this->widthCm; }
+    public function setWidthCm(?float $v): static { $this->widthCm = $v; return $this; }
+    public function getHeightCm(): ?float { return $this->heightCm; }
+    public function setHeightCm(?float $v): static { $this->heightCm = $v; return $this; }
+    public function getDepthCm(): ?float { return $this->depthCm; }
+    public function setDepthCm(?float $v): static { $this->depthCm = $v; return $this; }
+    public function getWeightG(): ?int { return $this->weightG; }
+    public function setWeightG(?int $v): static { $this->weightG = $v; return $this; }
     public function getImages(): array { return $this->images; }
     public function setImages(array $images): static { $this->images = array_values($images); return $this; }
 
@@ -73,6 +99,11 @@ class Product
             'published' => $this->published,
             'description' => $this->description,
             'stock' => $this->stock,
+            'sizeLabel' => $this->sizeLabel,
+            'widthCm' => $this->widthCm,
+            'heightCm' => $this->heightCm,
+            'depthCm' => $this->depthCm,
+            'weightG' => $this->weightG,
             'images' => $this->images,
         ];
     }

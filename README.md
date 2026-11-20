@@ -219,6 +219,19 @@ Dans `.env.local` : `STRIPE_SECRET_KEY=sk_test_…` (Stripe > Développeurs > Cl
 - Chiffre d'affaires du tableau de bord : seules les commandes payées comptent (les commandes en ligne « en attente » et les annulées sont exclues).
 - Les e-mails restent en français (la page de paiement Stripe suit, elle, la langue du site).
 
+## Caractéristiques des produits (taille, dimensions, poids)
+Chaque produit peut avoir, **facultativement** : `sizeLabel` (taille en texte libre : « Ø 8 cm », « Moyen »), `widthCm`, `heightCm`, `depthCm` (cm, de 0,1 à 1000) et `weightG` (grammes, entier de 1 à 500 000). Elles se saisissent dans le back-office (fiche produit, carte « Caractéristiques »), sont renvoyées par `GET /api/products` et affichées sur la fiche produit (et dans les données structurées `schema.org` pour Google). Un champ vide = non renseigné. `PUT` remplace le produit : renvoyez aussi ces champs, sinon ils sont vidés (`PATCH` conserve ceux que vous n'envoyez pas).
+
+## Avis clients
+- **Qui peut donner son avis** : uniquement une personne **connectée** ayant une commande **payée, expédiée ou livrée** contenant le produit (commande liée au compte ou passée avec la même adresse e-mail). **Un avis par personne et par produit.**
+- **Modération** : un nouvel avis est « en attente » (`pending`) et la boutique reçoit un e-mail (`CONTACT_EMAIL`). Il n'est visible sur le site qu'une fois **publié** (`approved`) dans le back-office, page « Avis clients » (publier, refuser, répondre publiquement, supprimer). Une pastille indique le nombre d'avis à modérer.
+- **Vie privée** : seuls le prénom et l'initiale du nom (« Marie D. ») sont affichés. L'avis est supprimé avec le compte, et il figure dans l'export des données (`GET /api/auth/me/export`).
+- **Routes** : `GET /api/products/{id}/reviews` (public : avis publiés, `summary` = moyenne, total, répartition par étoile) ; `GET /api/products/{id}/reviews/mine` (puis-je donner mon avis ?) ; `POST /api/products/{id}/reviews` `{ rating 1-5, title?, body 10-2000 caractères }` (10 dépôts par heure et par compte) ; `DELETE /api/reviews/{id}` (supprimer le sien) ; admin : `GET /api/admin/reviews?status=pending|approved|rejected&q=`, `PATCH /api/admin/reviews/{id}` `{ status?, reply? }`, `DELETE /api/admin/reviews/{id}`.
+- Les pages produit affichent la note moyenne dans les résultats Google (`aggregateRating`) dès qu'il y a au moins un avis publié.
+
+## Mise à jour de la base (caractéristiques, avis)
+`php bin/console doctrine:schema:update --force --env=prod` ajoute les colonnes `product.size_label`, `width_cm`, `height_cm`, `depth_cm`, `weight_g` et la table `review`. Puis `php bin/console cache:clear --env=prod`. Les produits existants gardent des caractéristiques vides.
+
 ## Erreurs
 
 Toujours du JSON : `{ "error": "code", "message": "…" }`. Les erreurs de formulaire (**422**) donnent `violations` par champ,

@@ -37,6 +37,11 @@ framework:
             policy: sliding_window
             limit: 5
             interval: '1 hour'
+        # Avis clients : dépôt d'un avis (par compte)
+        review:
+            policy: sliding_window
+            limit: 10
+            interval: '1 hour'
         # Demandes de devis (formulaire public avec photos)
         quote:
             policy: sliding_window

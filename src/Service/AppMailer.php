@@ -5,6 +5,7 @@ namespace App\Service;
 use App\Entity\ContactMessage;
 use App\Entity\Order;
 use App\Entity\QuoteRequest;
+use App\Entity\Review;
 use App\Entity\User;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -265,6 +266,22 @@ final class AppMailer
             .($address === [] ? '' : "\nAdresse de livraison :\n".implode("\n", $address)."\n");
 
         return $this->send($order->getCustomerEmail(), $order->getCustomerName(), 'Votre commande '.$order->getReference().' est expédiée', $text, $html);
+    }
+
+    // Nouvel avis à modérer : prévient la boutique
+    public function sendReviewNotification(Review $r, string $shopEmail): bool
+    {
+        $stars = str_repeat('★', $r->getRating()).str_repeat('☆', 5 - $r->getRating());
+        $url = rtrim($this->frontendUrl, '/').'/admin/avis';
+        $html = $this->layout('Nouvel avis à modérer',
+            '<p><strong>'.$this->e($r->getAuthorName()).'</strong> a donné son avis sur <strong>'.$this->e($r->getProduct()->getName()).'</strong> : '.$stars.'</p>'
+            .($r->getTitle() ? '<p><strong>'.$this->e($r->getTitle()).'</strong></p>' : '')
+            .'<p style="white-space:pre-line">'.$this->e($r->getBody()).'</p>'
+            .'<p style="margin:24px 0"><a href="'.$this->e($url).'" style="background:#0f2a6b;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:600">Modérer l’avis</a></p>'
+            .'<p style="font-size:13px;color:#6b5f50">Il ne sera visible sur le site qu’après votre validation.</p>');
+        $text = "Nouvel avis ({$r->getRating()}/5) de {$r->getAuthorName()} sur {$r->getProduct()->getName()} :\n\n{$r->getBody()}\n\nModérer : $url\n";
+
+        return $this->send($shopEmail, 'Les galets d’Ambre', 'Nouvel avis à modérer – '.$r->getProduct()->getName(), $text, $html);
     }
 
     // Remboursement effectué
