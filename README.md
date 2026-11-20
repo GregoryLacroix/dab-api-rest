@@ -232,6 +232,9 @@ Chaque produit peut avoir, **facultativement** : `sizeLabel` (taille en texte li
 ## Traduction anglaise des produits et catégories
 Produits : champs `Name (anglais)` et `Description (anglais)` dans la fiche produit du back-office ; catégories : « Nom anglais » à la création et à la modification. Facultatifs : ce qui est vide s'affiche en français sur le site anglais. L'API les renvoie sous la forme `translations: { en: { name, description } }` (clé absente si rien n'est renseigné), que le React applique tout seul. Les aperçus de partage (`/api/share/products/{id}?lang=en`) utilisent aussi le texte anglais. Colonnes ajoutées : `product.name_en`, `product.description_en`, `category.name_en` (`doctrine:schema:update --force`).
 
+## Statistiques du tableau de bord
+`GET /api/admin/analytics?period=7|30|90|365|all` (administrateur, 30 jours par défaut), calculé à la demande par `src/Service/AnalyticsService.php` : chiffre d'affaires, commandes, panier moyen, articles vendus, clients (dont part de clients fidèles) et nouveaux comptes, chacun comparé à la période précédente de même durée ; courbe du chiffre d'affaires (par jour, ou par mois au-delà de 90 jours), meilleur jour, meilleur produit, top 5, ventes par catégorie, commandes par jour de la semaine et par statut, devis (reçus, envoyés, acomptes, conversion), avis (moyenne, mieux notés), stock et pièces disponibles sans vente sur la période. Une « vente » est une commande non annulée, hors paiement en ligne en attente (comme le chiffre d'affaires existant) ; les dates suivent le fuseau Europe/Paris. Aucune nouvelle table.
+
 ## Mise à jour de la base (caractéristiques, avis)
 `php bin/console doctrine:schema:update --force --env=prod` ajoute les colonnes `product.size_label`, `width_cm`, `height_cm`, `depth_cm`, `weight_g` et la table `review`. Puis `php bin/console cache:clear --env=prod`. Les produits existants gardent des caractéristiques vides.
 

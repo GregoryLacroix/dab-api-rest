@@ -70,6 +70,7 @@ class Product
     }
 
     public function getId(): ?int { return $this->id; }
+    public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
     public function getName(): string { return $this->name; }
     public function setName(string $name): static { $this->name = $name; return $this; }
     public function getCategory(): Category { return $this->category; }

@@ -5,6 +5,8 @@ namespace App\Controller;
 use App\Entity\Money;
 use App\Entity\Order;
 use App\Repository\CategoryRepository;
+use App\Service\AnalyticsService;
+use Symfony\Component\HttpFoundation\Request;
 use App\Repository\ContactMessageRepository;
 use App\Repository\OrderRepository;
 use App\Repository\ProductRepository;
@@ -34,5 +36,13 @@ final class AdminStatsController extends ApiController
             'revenue' => Money::fromCents($orders->revenueCents()),
             'recentOrders' => array_map(fn (Order $o) => $o->toArray(), $recent),
         ]);
+    }
+
+    // Statistiques détaillées : ?period=7|30|90|365|all (30 par défaut)
+    #[Route('/api/admin/analytics', name: 'api_admin_analytics', methods: ['GET'])]
+    #[IsGranted('ROLE_ADMIN')]
+    public function analytics(Request $request, AnalyticsService $analytics): JsonResponse
+    {
+        return new JsonResponse($analytics->compute((string) $request->query->get('period', '30')), 200, ['Cache-Control' => 'no-store']);
     }
 }
