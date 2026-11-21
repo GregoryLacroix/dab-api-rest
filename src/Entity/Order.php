@@ -37,6 +37,19 @@ class Order
     #[ORM\Column]
     private int $totalCents = 0;
 
+    // Remises : code promo et/ou carte cadeau utilisés sur les articles (centimes). Le total ci-dessus est déjà net de ces remises.
+    #[ORM\Column(length: 40, nullable: true)]
+    private ?string $promoCode = null;
+
+    #[ORM\Column(options: ['default' => 0])]
+    private int $promoCents = 0;
+
+    #[ORM\Column(length: 24, nullable: true)]
+    private ?string $giftCode = null;
+
+    #[ORM\Column(options: ['default' => 0])]
+    private int $giftCents = 0;
+
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(onDelete: 'SET NULL')]
     private ?User $user = null;
@@ -79,6 +92,10 @@ class Order
     #[ORM\Column(options: ['default' => true])]
     private bool $stockReleased = false;
 
+    // Remises rendues (code promo / solde de carte cadeau) : évite de les rendre deux fois
+    #[ORM\Column(options: ['default' => false])]
+    private bool $discountReleased = false;
+
     // Facture : numéro unique et continu (FA-2026-0001), attribué au paiement (ou à la première demande pour les anciennes commandes)
     #[ORM\Column(length: 30, nullable: true, unique: true)]
     private ?string $invoiceNumber = null;
@@ -108,6 +125,21 @@ class Order
     public function setItems(array $items): static { $this->items = array_values($items); return $this; }
     public function getTotalCents(): int { return $this->totalCents; }
     public function setTotalCents(int $cents): static { $this->totalCents = $cents; return $this; }
+    public function getPromoCode(): ?string { return $this->promoCode; }
+    public function getPromoCents(): int { return $this->promoCents; }
+    public function getGiftCode(): ?string { return $this->giftCode; }
+    public function getGiftCents(): int { return $this->giftCents; }
+    public function setDiscounts(?string $promoCode, int $promoCents, ?string $giftCode, int $giftCents): static
+    {
+        $this->promoCode = $promoCode;
+        $this->promoCents = $promoCents;
+        $this->giftCode = $giftCode;
+        $this->giftCents = $giftCents;
+
+        return $this;
+    }
+    /** Total des remises (code promo + carte cadeau), en centimes */
+    public function getDiscountCents(): int { return $this->promoCents + $this->giftCents; }
     public function getUser(): ?User { return $this->user; }
     public function setUser(?User $user): static { $this->user = $user; return $this; }
     public function getStripeSessionId(): ?string { return $this->stripeSessionId; }
@@ -140,6 +172,7 @@ class Order
         return $this;
     }
     public function isStockReleased(): bool { return $this->stockReleased; }
+    public function isDiscountReleased(): bool { return $this->discountReleased; }
     public function getInvoiceNumber(): ?string { return $this->invoiceNumber; }
     public function getInvoicedAt(): ?\DateTimeImmutable { return $this->invoicedAt; }
     public function setInvoice(string $number, \DateTimeImmutable $at): static { $this->invoiceNumber = $number; $this->invoicedAt = $at; return $this; }
@@ -163,6 +196,10 @@ class Order
             'date' => $this->createdAt->format(\DATE_ATOM),
             'status' => $this->status->value,
             'total' => Money::fromCents($this->totalCents),
+            'discount' => $this->getDiscountCents() === 0 ? null : [
+                'promoCode' => $this->promoCode, 'promo' => Money::fromCents($this->promoCents),
+                'giftCode' => $this->giftCode === null ? null : substr($this->giftCode, 0, 4).'…'.substr($this->giftCode, -4), 'gift' => Money::fromCents($this->giftCents),
+            ],
             'customer' => ['name' => $this->customerName, 'email' => $this->customerEmail],
             'items' => $this->items,
             // Paiement en ligne (online = commande passée via Stripe) et adresse de livraison saisie chez Stripe

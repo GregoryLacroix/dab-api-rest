@@ -101,6 +101,25 @@ class OrderRepository extends ServiceEntityRepository
         return $changed === 1;
     }
 
+    /** Marque les remises comme rendues, SEULEMENT si elles ne l'étaient pas. */
+    public function claimDiscountRelease(Order $order): bool
+    {
+        return 1 === $this->createQueryBuilder('o')->update()
+            ->set('o.discountReleased', ':yes')
+            ->where('o.id = :id')->andWhere('o.discountReleased = :no')
+            ->setParameter('yes', true)->setParameter('no', false)->setParameter('id', $order->getId())
+            ->getQuery()->execute();
+    }
+
+    /** Nombre de commandes non annulées qui ont utilisé ce code promo avec cette adresse e-mail. */
+    public function countWithPromo(string $code, string $email): int
+    {
+        return (int) $this->createQueryBuilder('o')->select('COUNT(o.id)')
+            ->where('o.promoCode = :c')->andWhere('o.customerEmail = :e')->andWhere('o.status <> :x')
+            ->setParameter('c', $code)->setParameter('e', mb_strtolower($email))->setParameter('x', OrderStatus::Cancelled->value)
+            ->getQuery()->getSingleScalarResult();
+    }
+
     /** Commandes en ligne restées « en attente » après l'expiration de la session Stripe (webhook manqué) */
     public function findStalePending(\DateTimeImmutable $createdBefore): array
     {

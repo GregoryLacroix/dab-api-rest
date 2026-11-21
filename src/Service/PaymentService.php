@@ -25,6 +25,8 @@ final class PaymentService
         private readonly AppMailer $mailer,
         private readonly InvoiceService $invoices,
         private readonly StockService $stock,
+        private readonly DiscountService $discounts,
+        private readonly GiftCardService $giftCards,
         private readonly QuoteService $quotes,
         private readonly LoggerInterface $logger,
         #[Autowire('%env(CONTACT_EMAIL)%')] private readonly string $shopEmail,
@@ -43,7 +45,7 @@ final class PaymentService
                 $order = $this->orderForSession($object);
                 if ($order !== null) {
                     $this->applySession($order, $object);
-                } elseif (!$this->quotes->handleSession($object)) { // acompte d'un devis de fresque ?
+                } elseif (!$this->quotes->handleSession($object) && !$this->giftCards->handleSession($object)) { // acompte d'un devis ou carte cadeau ?
                     $this->logger->warning('Stripe : événement pour une session inconnue.', ['session' => $object['id'] ?? null]);
                 }
                 break;
@@ -152,6 +154,7 @@ final class PaymentService
         if ($this->orders->transition($order, OrderStatus::Pending, OrderStatus::Cancelled)) {
             $this->em->refresh($order);
             $this->stock->release($order); // paiement expiré, refusé ou abandonné : les pièces redeviennent disponibles
+            $this->discounts->release($order);
         }
     }
 
@@ -182,6 +185,7 @@ final class PaymentService
         $this->em->flush();
 
         if ($first) {
+            $this->discounts->release($order); // code promo et solde de carte cadeau rendus au client
             if (!$shipped) {
                 $this->stock->release($order); // colis pas encore parti : la pièce est de nouveau en vente
             }

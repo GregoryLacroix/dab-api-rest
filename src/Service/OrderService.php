@@ -21,6 +21,7 @@ final class OrderService
         private readonly AppMailer $mailer,
         private readonly StripeGateway $stripe,
         private readonly StockService $stock,
+        private readonly DiscountService $discounts,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -59,13 +60,19 @@ final class OrderService
             throw new ValidationFailedException(['items' => 'Le montant minimum d’une commande payée en ligne est de 0,50 €.']);
         }
 
-        $order = (new Order())->setCustomer($input->name, $input->email)->setItems($items)->setTotalCents($total)->setUser($user);
+        // Codes promo / carte cadeau : remise sur les articles, recalculée ici (jamais lue dans la requête)
+        $applied = $this->discounts->evaluate($input->codes, $total, $input->email);
+        $discount = $applied['promoCents'] + $applied['giftCents'];
+
+        $order = (new Order())->setCustomer($input->name, $input->email)->setItems($items)->setTotalCents($total - $discount)->setUser($user)
+            ->setDiscounts($applied['promo']?->getCode(), $applied['promoCents'], $applied['gift']?->getCode(), $applied['giftCents']);
 
         // Réservation du stock + enregistrement de la commande dans UNE transaction : tout ou rien
         $conn = $this->em->getConnection();
         $conn->beginTransaction();
         try {
             $this->stock->reserve($qtyById, $locale);
+            $this->discounts->consume($applied);
             $this->em->persist($order);
             $this->em->flush();
             $conn->commit();
@@ -88,6 +95,7 @@ final class OrderService
             $order->setStatus(OrderStatus::Cancelled);
             $this->em->flush();
             $this->stock->release($order); // les pièces redeviennent disponibles
+            $this->discounts->release($order);
             throw new ServiceUnavailableHttpException(30, $locale === 'en'
                 ? 'Online payment is temporarily unavailable. Please try again in a few moments.'
                 : 'Le paiement en ligne est momentanément indisponible. Réessayez dans quelques instants.');

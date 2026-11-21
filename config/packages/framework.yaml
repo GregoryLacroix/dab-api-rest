@@ -52,6 +52,16 @@ framework:
             policy: sliding_window
             limit: 30
             interval: '10 minutes'
+        # Saisie de codes promo / cartes cadeau au panier (limite les essais de codes au hasard)
+        codes:
+            policy: sliding_window
+            limit: 15
+            interval: '10 minutes'
+        # Achat de carte cadeau (formulaire public)
+        gift_card:
+            policy: sliding_window
+            limit: 10
+            interval: '1 hour'
         # Suivi du paiement après le retour de Stripe (la page de confirmation interroge l'API quelques fois)
         order_status:
             policy: sliding_window

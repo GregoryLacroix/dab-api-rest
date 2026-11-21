@@ -3,6 +3,7 @@
 namespace App\Service;
 
 use App\Entity\ContactMessage;
+use App\Entity\GiftCard;
 use App\Entity\Order;
 use App\Entity\QuoteRequest;
 use App\Entity\Review;
@@ -89,6 +90,12 @@ final class AppMailer
         foreach ($order->getItems() as $i) {
             $html .= '<tr><td style="padding:4px 12px 4px 0">'.(int) $i['qty'].' × '.$this->e((string) $i['name']).'</td><td style="text-align:right">'.$this->eur($i['price'] * $i['qty']).'</td></tr>';
             $text .= "- {$i['qty']} x {$i['name']} : ".$this->eur($i['price'] * $i['qty'])."\n";
+        }
+        foreach ([['Code promo '.$order->getPromoCode(), $order->getPromoCents()], ['Carte cadeau', $order->getGiftCents()]] as [$label, $cents]) {
+            if ($cents > 0) {
+                $html .= '<tr><td style="padding:4px 12px 4px 0">'.$this->e($label).'</td><td style="text-align:right">− '.$this->eur($cents / 100).'</td></tr>';
+                $text .= "- $label : -".$this->eur($cents / 100)."\n";
+            }
         }
 
         return [$html, $text];
@@ -297,6 +304,38 @@ final class AppMailer
         $text = "Bonjour {$order->getCustomerName()},\n\nNous avons remboursé votre commande {$order->getReference()} : $amount.\nLe montant revient sur votre moyen de paiement d'origine sous 5 à 10 jours ouvrés, selon votre banque.\n";
 
         return $this->send($order->getCustomerEmail(), $order->getCustomerName(), 'Remboursement de votre commande '.$order->getReference(), $text, $html, null, $creditNotePdf);
+    }
+
+    /** Carte cadeau payée : le code part à l'acheteur, et au destinataire s'il a été renseigné. */
+    public function sendGiftCard(GiftCard $card, string $to, string $toName, bool $forRecipient): bool
+    {
+        $en = $card->getLang() === 'en';
+        $amount = $this->eur($card->getInitialCents() / 100);
+        $until = $card->getExpiresAt()?->setTimezone(new \DateTimeZone('Europe/Paris'))->format($en ? 'Y-m-d' : 'd/m/Y') ?? '';
+        $code = $this->e($card->getCode());
+        $msg = $card->getMessage() !== null && $card->getMessage() !== '' ? $this->e($card->getMessage()) : null;
+        $shop = rtrim($this->frontendUrl, '/').($en ? '/en/cart' : '/panier');
+        $from = $this->e($card->getBuyerName());
+
+        if ($forRecipient) {
+            $title = $en ? 'A gift for you!' : 'Un cadeau pour vous !';
+            $intro = $en ? "$from offered you a gift card worth <strong>$amount</strong> for Les galets d’Ambre, hand-painted pebbles and wall decor."
+                : "$from vous offre une carte cadeau de <strong>$amount</strong> pour Les galets d’Ambre, galets peints à la main et décoration murale.";
+        } else {
+            $title = $en ? 'Your gift card' : 'Votre carte cadeau';
+            $intro = $en ? "Thank you! Your payment is confirmed. Here is your gift card worth <strong>$amount</strong>. You can use it yourself or forward this e-mail to the lucky recipient."
+                : "Merci ! Votre paiement est confirmé. Voici votre carte cadeau de <strong>$amount</strong>. Vous pouvez l’utiliser vous-même ou transmettre cet e-mail à son heureux destinataire.";
+        }
+        $how = $en ? "Enter the code in your cart to pay all or part of your order (valid until $until, usable in several orders until the balance is used up)."
+            : "Saisissez le code dans votre panier pour régler tout ou partie d’une commande (valable jusqu’au $until, utilisable en plusieurs commandes jusqu’à épuisement du solde).";
+        $html = $this->layout($title, '<p>'.$intro.'</p>'
+            .($msg !== null ? '<blockquote style="margin:16px 0;padding:10px 16px;border-left:4px solid #e6d9c3;color:#4a4034;font-style:italic">'.nl2br($msg).'</blockquote>' : '')
+            .'<p style="text-align:center;margin:24px 0"><span style="display:inline-block;background:#faf6ef;border:2px dashed #0f2a6b;border-radius:10px;padding:14px 26px;font-size:22px;letter-spacing:2px;font-weight:700;color:#0f2a6b">'.$code.'</span></p>'
+            .'<p>'.$how.'</p><p style="margin:24px 0"><a href="'.$this->e($shop).'" style="background:#0f2a6b;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:600">'.($en ? 'Visit the shop' : 'Découvrir la boutique').'</a></p>');
+        $text = ($forRecipient ? ($en ? "{$card->getBuyerName()} offered you a gift card worth $amount.\n" : "{$card->getBuyerName()} vous offre une carte cadeau de $amount.\n") : ($en ? "Your gift card worth $amount:\n" : "Votre carte cadeau de $amount :\n"))
+            .($msg !== null ? "\n".$card->getMessage()."\n" : '')."\n".$card->getCode()."\n\n".strip_tags($how)."\n";
+
+        return $this->send($to, $toName, $forRecipient ? ($en ? 'A gift card for you' : 'Une carte cadeau pour vous') : ($en ? 'Your gift card' : 'Votre carte cadeau'), $text, $html);
     }
 
     /** @param array{0: string, 1: string}|null $pdf [contenu, nom du fichier] : PDF joint au message */

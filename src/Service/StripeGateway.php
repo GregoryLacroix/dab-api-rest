@@ -2,6 +2,7 @@
 
 namespace App\Service;
 
+use App\Entity\GiftCard;
 use App\Entity\Money;
 use App\Entity\Order;
 use App\Entity\QuoteRequest;
@@ -97,9 +98,57 @@ final class StripeGateway
         if (trim($this->shippingRateId) !== '') {
             $params['shipping_options'] = [['shipping_rate' => trim($this->shippingRateId)]];
         }
+        if ($order->getDiscountCents() > 0) {
+            // Remise (code promo + carte cadeau) : un coupon Stripe à usage unique, du montant exact calculé par le serveur
+            $coupon = $this->client()->coupons->create([
+                'amount_off' => $order->getDiscountCents(),
+                'currency' => 'eur',
+                'duration' => 'once',
+                'max_redemptions' => 1,
+                'name' => mb_substr($lang === 'en' ? 'Discount' : 'Remise', 0, 40),
+                'metadata' => ['order_ref' => $order->getReference()],
+            ], ['idempotency_key' => 'coupon-order-'.$order->getId()]);
+            $params['discounts'] = [['coupon' => $coupon->id]];
+        }
 
         // La clé d'idempotence évite de créer deux pages de paiement si la requête est rejouée
         $session = $this->client()->checkout->sessions->create($params, ['idempotency_key' => 'checkout-order-'.$order->getId()]);
+
+        return ['id' => (string) $session->id, 'url' => (string) $session->url];
+    }
+
+    /**
+     * Page de paiement de l'achat d'une carte cadeau (pas de livraison : le code part par e-mail).
+     *
+     * @return array{id: string, url: string}
+     */
+    public function createGiftCardCheckout(GiftCard $card): array
+    {
+        $lang = $card->getLang();
+        $base = rtrim($this->frontendUrl, '/');
+        $page = $base.($lang === 'en' ? '/en/gift-card' : '/carte-cadeau');
+        $meta = ['gift_card_id' => (string) $card->getId()];
+
+        $params = [
+            'mode' => 'payment',
+            'customer_email' => $card->getBuyerEmail(),
+            'locale' => $lang,
+            'line_items' => [[
+                'quantity' => 1,
+                'price_data' => [
+                    'currency' => 'eur',
+                    'unit_amount' => $card->getInitialCents(),
+                    'product_data' => ['name' => $lang === 'en' ? 'Gift card – Les galets d’Ambre' : 'Carte cadeau – Les galets d’Ambre'],
+                ],
+            ]],
+            'success_url' => $page.'?session_id={CHECKOUT_SESSION_ID}',
+            'cancel_url' => $page.'?cancelled=1',
+            'expires_at' => time() + 31 * 60,
+            'metadata' => $meta,
+            'payment_intent_data' => ['description' => 'Les galets d’Ambre – carte cadeau', 'metadata' => $meta],
+        ];
+
+        $session = $this->client()->checkout->sessions->create($params, ['idempotency_key' => 'giftcard-'.$card->getId()]);
 
         return ['id' => (string) $session->id, 'url' => (string) $session->url];
     }

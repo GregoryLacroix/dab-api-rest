@@ -163,8 +163,16 @@ final class InvoiceService
             $itemsCents += $lineCents;
             $this->row($pdf, $x, $w, (string) $item['name'], (string) $qty, $this->eur($sign * $unitCents), $this->eur($sign * $lineCents));
         }
-        // Frais de port éventuels : différence entre le total encaissé et le total des articles
-        $shippingCents = $order->getTotalCents() - $itemsCents;
+        // Remises (code promo, carte cadeau) : lignes négatives
+        if ($order->getPromoCents() > 0) {
+            $label = 'Code promo '.$order->getPromoCode();
+            $this->row($pdf, $x, $w, $label, '1', $this->eur(-$sign * $order->getPromoCents()), $this->eur(-$sign * $order->getPromoCents()));
+        }
+        if ($order->getGiftCents() > 0) {
+            $this->row($pdf, $x, $w, 'Carte cadeau', '1', $this->eur(-$sign * $order->getGiftCents()), $this->eur(-$sign * $order->getGiftCents()));
+        }
+        // Frais de port éventuels : différence entre le total encaissé et le total des articles (remises déduites)
+        $shippingCents = $order->getTotalCents() - ($itemsCents - $order->getDiscountCents());
         if ($shippingCents > 0) {
             $this->row($pdf, $x, $w, 'Livraison', '1', $this->eur($sign * $shippingCents), $this->eur($sign * $shippingCents));
         }

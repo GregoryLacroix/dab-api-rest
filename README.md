@@ -238,6 +238,18 @@ Produits : champs `Name (anglais)` et `Description (anglais)` dans la fiche prod
 ## Page « Bientôt disponible »
 Le réglage vit dans le contenu du site : `GET /api/content` renvoie `comingSoon: { enabled, title, text, date (AAAA-MM-JJ ou vide), autoOpen }` ; `PUT /api/content` accepte `{ "comingSoon": {…} }` seul. C'est le front qui affiche la page d'attente ; l'API reste utilisable (les administrateurs et les liens de paiement continuent de fonctionner). Aucune mise à jour de base nécessaire.
 
+## Codes promo, cartes cadeau, réalisations
+
+**Base de données** : exécutez `docs/sql-promos-cartes-realisations.sql` dans phpMyAdmin (pas de `schema:update --force`, voir plus haut). La table des commandes est `shop_order`.
+
+**Codes promo** (`PromoCode`, back-office « Codes promo & cartes cadeau ») : pourcentage ou montant fixe, achat minimum, dates de validité, nombre d'utilisations, une fois par e-mail, activation. La remise porte sur les **articles** (jamais la livraison) et laisse au moins 0,50 € à payer (minimum Stripe). `POST /api/codes/check` calcule la remise pour le panier ; `OrderService` la recalcule à la commande (le serveur est la seule source de vérité). L'usage est pris de façon atomique (`PromoCodeRepository::consume`) et rendu si la commande est annulée, expirée ou remboursée (`DiscountService::release`, une seule fois par commande). Pour Stripe, la remise est un coupon à usage unique du montant exact (`discounts`). La remise apparaît sur la facture, l'avoir, l'e-mail et « Mon compte ».
+
+**Cartes cadeau** (`GiftCard`) : `POST /api/gift-cards` crée une carte « en attente » et ouvre une page de paiement Stripe ; le webhook (ou la page de retour `/carte-cadeau?session_id=…`) l'active, fixe la validité à **1 an** (`GiftCard::VALIDITY`) et envoie le code (format `GDA-XXXX-XXXX-XXXX`) à l'acheteur et au destinataire. Montant de 10 à 500 € (`MIN_CENTS` / `MAX_CENTS`). Au panier, le même champ accepte un code promo **et** une carte (une de chaque au plus) : le solde est débité de façon atomique à la commande et recrédité si la commande est annulée ou remboursée. La carte ne paie que les articles (pas la livraison). Une carte vendue n'est pas une facture de vente (la TVA est due à l'utilisation) : aucune facture n'est émise à l'achat ; les commandes payées avec la carte ont leur facture normale (la part payée par carte y figure comme remise). Annulation / réactivation possible dans le back-office. Prérequis : le webhook Stripe existant suffit (mêmes événements).
+
+**Réalisations** (`Realisation`, back-office « Réalisations ») : `GET /api/realisations` (public), `/api/admin/realisations` (CRUD). Photos envoyées par `POST /api/uploads` (optimisées), photo « avant » facultative, textes FR/EN, catégorie servant de filtre, ordre d'affichage, publication.
+
+Pensez à relire les CGV (article 13 ajouté côté React) et à vérifier la durée de validité des cartes cadeau avec votre conseil juridique.
+
 ## Mise à jour de la base (caractéristiques, avis)
 `php bin/console doctrine:schema:update --force --env=prod` ajoute les colonnes `product.size_label`, `width_cm`, `height_cm`, `depth_cm`, `weight_g` et la table `review`. Puis `php bin/console cache:clear --env=prod`. Les produits existants gardent des caractéristiques vides.
 

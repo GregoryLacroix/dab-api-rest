@@ -8,6 +8,7 @@ use App\Entity\OrderStatus;
 use App\Entity\User;
 use App\Repository\OrderRepository;
 use App\Service\ApiValidator;
+use App\Service\DiscountService;
 use App\Service\AppMailer;
 use App\Service\InvoiceService;
 use App\Service\StockService;
@@ -37,6 +38,7 @@ final class OrderController extends ApiController
         private readonly PaymentService $payments,
         private readonly InvoiceService $invoices,
         private readonly StockService $stock,
+        private readonly DiscountService $discounts,
         private readonly AppMailer $mailer,
         private readonly ApiValidator $validator,
         #[Autowire(service: 'limiter.order')] private readonly RateLimiterFactory $orderLimiter,
@@ -112,6 +114,7 @@ final class OrderController extends ApiController
 
         if ($status === OrderStatus::Cancelled && \in_array($previous, [OrderStatus::Pending, OrderStatus::Paid], true)) {
             $this->stock->release($order);
+            $this->discounts->release($order);
         }
         $notify = filter_var($body['notify'] ?? true, \FILTER_VALIDATE_BOOLEAN);
         if ($status === OrderStatus::Shipped && $notify && ($previous !== OrderStatus::Shipped || $tracking !== null)) {

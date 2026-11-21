@@ -15,6 +15,8 @@ final class OrderInput
     public array $items = [];
     // Acceptation des conditions générales de vente (obligatoire pour commander)
     public bool $acceptTerms = false;
+    /** @var string[] codes promo / carte cadeau saisis (au plus un de chaque) */
+    public array $codes = [];
 
     public static function fromArray(array $d): self
     {
@@ -23,6 +25,11 @@ final class OrderInput
         $in->name = is_string($c['name'] ?? null) ? trim($c['name']) : '';
         $in->email = is_string($c['email'] ?? null) ? mb_strtolower(trim($c['email'])) : '';
         $in->acceptTerms = filter_var($d['acceptTerms'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        foreach (is_array($d['codes'] ?? null) ? array_slice($d['codes'], 0, 2) : [] as $code) {
+            if (is_string($code) && trim($code) !== '' && strlen($code) <= 40) {
+                $in->codes[] = trim($code);
+            }
+        }
         $rows = is_array($d['items'] ?? null) ? array_values($d['items']) : [];
         foreach ($rows as $r) {
             $r = is_array($r) ? $r : [];
