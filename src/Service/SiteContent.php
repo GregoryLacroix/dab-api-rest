@@ -45,6 +45,14 @@ final class SiteContent
             'deliveryDelay' => '1 à 2 semaines après la commande pour les galets en stock',
             'shippingTerms' => 'Les frais de livraison sont indiqués avant la validation de la commande.',
         ],
+        // Page d'attente « Bientôt disponible » : quand `enabled` est vrai, les visiteurs ne voient que cette page (l'administrateur connecté voit le site)
+        'comingSoon' => [
+            'enabled' => false,
+            'title' => 'Bientôt disponible',
+            'text' => 'La boutique de galets peints à la main et de décoration murale ouvre très prochainement. Revenez nous voir !',
+            'date' => '',         // date d'ouverture facultative (AAAA-MM-JJ), affichée sur la page
+            'autoOpen' => false,  // vrai : le site s'ouvre tout seul à cette date
+        ],
         'footer' => ['text' => 'Les galets d’Ambre – Peinture sur galets & décoration murale'],
     ];
 
@@ -200,6 +208,12 @@ final class SiteContent
                 'email' => [new Assert\Type('string', message: 'Texte attendu.'), new Assert\Email(message: 'Adresse e-mail invalide.')],
                 'phone' => $opt(40), 'publisher' => $opt(160), 'host' => $opt(160), 'hostAddress' => $opt(300), 'mediator' => $opt(500),
                 'vatNote' => $opt(300), 'deliveryDelay' => $opt(200), 'shippingTerms' => $opt(500),
+            ], extraFieldsMessage: $extra, missingFieldsMessage: $missing),
+            'comingSoon' => new Assert\Collection(fields: [
+                'enabled' => new Assert\Type('bool', message: 'Booléen attendu.'),
+                'title' => $text(80), 'text' => $text(400),
+                'date' => [new Assert\Type('string', message: 'Texte attendu.'), new Assert\Regex(pattern: '~^(\d{4}-\d{2}-\d{2})?$~', message: 'Date au format AAAA-MM-JJ, ou vide.')],
+                'autoOpen' => new Assert\Type('bool', message: 'Booléen attendu.'),
             ], extraFieldsMessage: $extra, missingFieldsMessage: $missing),
             'footer' => new Assert\Collection(fields: ['text' => $text(160)], extraFieldsMessage: $extra, missingFieldsMessage: $missing),
         ], extraFieldsMessage: $extra, missingFieldsMessage: $missing);

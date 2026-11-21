@@ -235,6 +235,9 @@ Produits : champs `Name (anglais)` et `Description (anglais)` dans la fiche prod
 ## Statistiques du tableau de bord
 `GET /api/admin/analytics?period=7|30|90|365|all` (administrateur, 30 jours par défaut), calculé à la demande par `src/Service/AnalyticsService.php` : chiffre d'affaires, commandes, panier moyen, articles vendus, clients (dont part de clients fidèles) et nouveaux comptes, chacun comparé à la période précédente de même durée ; courbe du chiffre d'affaires (par jour, ou par mois au-delà de 90 jours), meilleur jour, meilleur produit, top 5, ventes par catégorie, commandes par jour de la semaine et par statut, devis (reçus, envoyés, acomptes, conversion), avis (moyenne, mieux notés), stock et pièces disponibles sans vente sur la période. Une « vente » est une commande non annulée, hors paiement en ligne en attente (comme le chiffre d'affaires existant) ; les dates suivent le fuseau Europe/Paris. Aucune nouvelle table.
 
+## Page « Bientôt disponible »
+Le réglage vit dans le contenu du site : `GET /api/content` renvoie `comingSoon: { enabled, title, text, date (AAAA-MM-JJ ou vide), autoOpen }` ; `PUT /api/content` accepte `{ "comingSoon": {…} }` seul. C'est le front qui affiche la page d'attente ; l'API reste utilisable (les administrateurs et les liens de paiement continuent de fonctionner). Aucune mise à jour de base nécessaire.
+
 ## Mise à jour de la base (caractéristiques, avis)
 `php bin/console doctrine:schema:update --force --env=prod` ajoute les colonnes `product.size_label`, `width_cm`, `height_cm`, `depth_cm`, `weight_g` et la table `review`. Puis `php bin/console cache:clear --env=prod`. Les produits existants gardent des caractéristiques vides.
 
