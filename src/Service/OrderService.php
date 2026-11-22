@@ -22,6 +22,7 @@ final class OrderService
         private readonly StripeGateway $stripe,
         private readonly StockService $stock,
         private readonly DiscountService $discounts,
+        private readonly ShippingService $shipping,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -64,7 +65,11 @@ final class OrderService
         $applied = $this->discounts->evaluate($input->codes, $total, $input->email);
         $discount = $applied['promoCents'] + $applied['giftCents'];
 
-        $order = (new Order())->setCustomer($input->name, $input->email)->setItems($items)->setTotalCents($total - $discount)->setUser($user)
+        // Frais de port : tarif selon le poids du colis et le pays, calculé ici (jamais lu dans la requête)
+        $ship = $this->shipping->quote($this->shipping->weightOf($qtyById, $products), $total - $discount, $input->country);
+
+        $order = (new Order())->setCustomer($input->name, $input->email)->setItems($items)->setTotalCents($total - $discount + $ship['cents'])->setUser($user)
+            ->setShippingCost($ship['cents'], $ship['country'])
             ->setDiscounts($applied['promo']?->getCode(), $applied['promoCents'], $applied['gift']?->getCode(), $applied['giftCents']);
 
         // Réservation du stock + enregistrement de la commande dans UNE transaction : tout ou rien

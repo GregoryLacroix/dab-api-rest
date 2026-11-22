@@ -17,6 +17,8 @@ final class OrderInput
     public bool $acceptTerms = false;
     /** @var string[] codes promo / carte cadeau saisis (au plus un de chaque) */
     public array $codes = [];
+    /** Pays de livraison (code ISO à 2 lettres) : sert au calcul des frais de port */
+    public string $country = 'FR';
 
     public static function fromArray(array $d): self
     {
@@ -25,6 +27,9 @@ final class OrderInput
         $in->name = is_string($c['name'] ?? null) ? trim($c['name']) : '';
         $in->email = is_string($c['email'] ?? null) ? mb_strtolower(trim($c['email'])) : '';
         $in->acceptTerms = filter_var($d['acceptTerms'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        if (is_string($d['country'] ?? null) && preg_match('/^[A-Za-z]{2}$/', $d['country'])) {
+            $in->country = strtoupper($d['country']);
+        }
         foreach (is_array($d['codes'] ?? null) ? array_slice($d['codes'], 0, 2) : [] as $code) {
             if (is_string($code) && trim($code) !== '' && strlen($code) <= 40) {
                 $in->codes[] = trim($code);

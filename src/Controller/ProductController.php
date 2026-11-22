@@ -7,7 +7,11 @@ use App\Entity\Category;
 use App\Entity\Money;
 use App\Entity\Product;
 use App\Repository\ProductRepository;
+use App\Repository\StockAlertRepository;
 use App\Service\ApiValidator;
+use App\Service\StockAlertService;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
 use App\Service\ValidationFailedException;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -24,6 +28,9 @@ final class ProductController extends ApiController
         private readonly EntityManagerInterface $em,
         private readonly ProductRepository $products,
         private readonly ApiValidator $validator,
+        private readonly StockAlertService $stockAlerts,
+        private readonly StockAlertRepository $alertRepo,
+        #[Autowire(service: 'limiter.stock_alert')] private readonly RateLimiterFactory $alertLimiter,
     ) {
     }
 
@@ -76,9 +83,47 @@ final class ProductController extends ApiController
         if ($request->getMethod() === 'PATCH') {
             $data = array_replace($product->toArray(), $data);
         }
+        $wasSoldOut = $product->getStock() <= 0;
         $this->save($product, $data);
+        if ($wasSoldOut) {
+            $this->stockAlerts->notifyRestocked($product); // de nouveau en stock : prévient les inscrits « prévenez-moi »
+        }
 
         return new JsonResponse($product->toArray());
+    }
+
+    // « Prévenez-moi » : { email } (produit épuisé uniquement). 204 même si l'adresse était déjà inscrite.
+    #[Route('/{id}/stock-alert', name: 'api_products_stock_alert', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function stockAlert(int $id, Request $request): Response
+    {
+        $this->throttle($this->alertLimiter, $request->getClientIp() ?? 'unknown');
+        $product = $this->products->find($id);
+        if ($product === null || !$product->isPublished()) {
+            throw new NotFoundHttpException();
+        }
+        $email = \is_string($this->body($request)['email'] ?? null) ? mb_strtolower(trim($this->body($request)['email'])) : '';
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL) || \strlen($email) > 180) {
+            throw new ValidationFailedException(['email' => 'Saisissez une adresse e-mail valide.']);
+        }
+        $this->stockAlerts->subscribe($product, $email, $request->getPreferredLanguage(['fr', 'en']) ?? 'fr');
+
+        return new Response(status: 204);
+    }
+
+    // Back-office : produits les plus demandés en alerte « prévenez-moi » -> [{ productId, name, stock, count }]
+    #[Route('/stock-alerts', name: 'api_products_stock_alerts', methods: ['GET'], priority: 10)]
+    #[IsGranted('ROLE_ADMIN')]
+    public function stockAlertCounts(): JsonResponse
+    {
+        $out = [];
+        foreach ($this->alertRepo->countsByProduct() as $row) {
+            $p = $this->products->find($row['productId']);
+            if ($p !== null) {
+                $out[] = ['productId' => $p->getId(), 'name' => $p->getName(), 'stock' => $p->getStock(), 'count' => $row['count']];
+            }
+        }
+
+        return new JsonResponse($out);
     }
 
     #[Route('/{id}', name: 'api_products_delete', requirements: ['id' => '\d+'], methods: ['DELETE'])]

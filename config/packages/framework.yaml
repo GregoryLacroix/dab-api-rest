@@ -57,6 +57,21 @@ framework:
             policy: sliding_window
             limit: 15
             interval: '10 minutes'
+        # Inscription « prévenez-moi » (retour en stock)
+        stock_alert:
+            policy: sliding_window
+            limit: 10
+            interval: '1 hour'
+        # Page publique « Suivre ma commande » (numéro + e-mail)
+        order_track:
+            policy: sliding_window
+            limit: 10
+            interval: '10 minutes'
+        # Calcul des frais de port au panier
+        shipping_quote:
+            policy: sliding_window
+            limit: 60
+            interval: '10 minutes'
         # Achat de carte cadeau (formulaire public)
         gift_card:
             policy: sliding_window

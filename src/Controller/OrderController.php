@@ -42,6 +42,7 @@ final class OrderController extends ApiController
         private readonly AppMailer $mailer,
         private readonly ApiValidator $validator,
         #[Autowire(service: 'limiter.order')] private readonly RateLimiterFactory $orderLimiter,
+        #[Autowire(service: 'limiter.order_track')] private readonly RateLimiterFactory $trackLimiter,
     ) {
     }
 
@@ -60,6 +61,50 @@ final class OrderController extends ApiController
         $placed = $this->service->create($input, $user instanceof User ? $user : null, $locale);
 
         return new JsonResponse($placed->order->toArray() + ['checkoutUrl' => $placed->checkoutUrl], 201);
+    }
+
+    // Page publique « Suivre ma commande » : { reference: "CMD-1042", email } -> état, colis et articles (jamais l'adresse).
+    // Numéro inconnu ou e-mail différent : la même réponse 404, pour qu'on ne puisse pas deviner des commandes.
+    #[Route('/track', name: 'api_orders_track', methods: ['POST'])]
+    public function track(Request $request): JsonResponse
+    {
+        $this->throttle($this->trackLimiter, $request->getClientIp() ?? 'unknown');
+        $body = $this->body($request);
+        $ref = \is_string($body['reference'] ?? null) ? strtoupper(trim($body['reference'])) : '';
+        $email = \is_string($body['email'] ?? null) ? mb_strtolower(trim($body['email'])) : '';
+        $errors = [];
+        if (!preg_match('/^CMD-\d{1,9}$/', $ref)) {
+            $errors['reference'] = 'Numéro de commande invalide (exemple : CMD-1042).';
+        }
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $errors['email'] = 'Saisissez l’adresse e-mail utilisée pour la commande.';
+        }
+        if ($errors !== []) {
+            throw new ValidationFailedException($errors);
+        }
+        $order = null;
+        try {
+            $order = $this->find($ref);
+        } catch (NotFoundHttpException) {
+        }
+        if ($order === null || mb_strtolower($order->getCustomerEmail()) !== $email || $order->getStatus() === OrderStatus::Pending) {
+            throw new NotFoundHttpException('Aucune commande ne correspond à ces informations.');
+        }
+        $url = $order->getTrackingUrl();
+        if (($url === null || $url === '') && $order->getTrackingNumber() !== null) {
+            $url = TrackingLinks::urlFor($order->getCarrier(), $order->getTrackingNumber());
+        }
+
+        return new JsonResponse([
+            'reference' => $order->getReference(),
+            'date' => $order->toArray()['date'],
+            'status' => $order->getStatus()->value,
+            'items' => array_map(static fn (array $i) => ['name' => $i['name'], 'qty' => $i['qty']], $order->getItems()),
+            'tracking' => $order->toArray()['tracking'] === null ? null : [
+                'carrier' => $order->getCarrier(), 'number' => $order->getTrackingNumber(), 'url' => $url,
+                'shippedAt' => $order->toArray()['tracking']['shippedAt'],
+            ],
+        ]);
     }
 
     // Back-office "Commandes" : ?status=payée &q=martin &page=1 &perPage=10

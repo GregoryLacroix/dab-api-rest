@@ -250,6 +250,18 @@ Le réglage vit dans le contenu du site : `GET /api/content` renvoie `comingSoon
 
 Pensez à relire les CGV (article 13 ajouté côté React) et à vérifier la durée de validité des cartes cadeau avec votre conseil juridique.
 
+## Frais de port, suivi de commande, alertes « prévenez-moi », FAQ
+
+**Base de données** : exécutez `docs/sql-livraison-suivi-alertes-faq.sql` dans phpMyAdmin (colonnes `shipping_cents` / `shipping_country` sur `shop_order`, tables `stock_alert` et `faq`, et 8 questions de départ à relire).
+
+**Frais de port réels** (`ShippingService`, back-office « Frais de port ») : zones (listes de pays), tranches de poids, seuil de livraison offerte par zone. Poids du colis = poids des fiches produit (sinon poids par défaut) + emballage. Le client choisit son pays au panier ; `POST /api/shipping/quote` donne le tarif ; `OrderService` le **recalcule** à la commande, l'enregistre sur la commande (`shippingCents`) et l'envoie à Stripe en un tarif unique (`shipping_rate_data`), le pays de livraison étant limité à celui choisi. Le total payé inclut donc la livraison ; la facture déduit la livraison (total − articles + remises) comme avant. Tant que « Calculer les frais de port » est décoché, rien ne change (ancien comportement, `STRIPE_SHIPPING_RATE_ID` éventuel). Une remise promo / carte cadeau ne porte jamais sur la livraison ; elle compte pour le seuil de livraison offerte. Un colis plus lourd que la dernière tranche est refusé avec un message (« contactez-nous »). Les tarifs par défaut sont des exemples : à remplacer par vos vrais tarifs.
+
+**Suivi de commande** : `POST /api/orders/track` { reference, email } (10 essais / 10 min / IP, même réponse 404 pour un numéro inconnu ou un e-mail différent, adresse de livraison jamais renvoyée). Le lien du transporteur vient du back-office ou, à défaut, de `TrackingLinks`. Page `/suivi-commande`.
+
+**Alertes « prévenez-moi »** (`StockAlert`) : `POST /api/products/{id}/stock-alert` { email } sur un produit épuisé (10 / heure / IP). Quand vous remettez du stock via la fiche produit (stock 0 → plus de 0), `StockAlertService::notifyRestocked` envoie un seul e-mail à chaque inscrit puis **supprime** l'adresse. Les pièces remises en stock automatiquement (commande annulée ou expirée) ne déclenchent pas d'alerte. Page admin « Alertes retour en stock » (demande par produit).
+
+**FAQ** (`Faq`) : `GET /api/faq` (public), `/api/admin/faq` (CRUD), FR/EN, balisage schema.org `FAQPage`.
+
 ## Mise à jour de la base (caractéristiques, avis)
 `php bin/console doctrine:schema:update --force --env=prod` ajoute les colonnes `product.size_label`, `width_cm`, `height_cm`, `depth_cm`, `weight_g` et la table `review`. Puis `php bin/console cache:clear --env=prod`. Les produits existants gardent des caractéristiques vides.
 

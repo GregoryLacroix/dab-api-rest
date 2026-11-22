@@ -91,11 +91,20 @@ final class StripeGateway
                 'metadata' => ['order_ref' => $order->getReference(), 'order_id' => (string) $order->getId()],
             ],
         ];
-        if ($countries !== []) {
+        if ($order->getShippingCountry() !== null) {
+            // Frais de port calculés par le site : un seul tarif, pour le pays choisi au panier
+            $free = $order->getShippingCents() === 0;
+            $params['shipping_address_collection'] = ['allowed_countries' => [$order->getShippingCountry()]];
+            $params['shipping_options'] = [['shipping_rate_data' => [
+                'type' => 'fixed_amount',
+                'fixed_amount' => ['amount' => $order->getShippingCents(), 'currency' => 'eur'],
+                'display_name' => $lang === 'en' ? ($free ? 'Free shipping' : 'Shipping') : ($free ? 'Livraison offerte' : 'Livraison'),
+            ]]];
+        } elseif ($countries !== []) {
             // Produits physiques : Stripe demande l'adresse de livraison (renvoyée ensuite dans le webhook)
             $params['shipping_address_collection'] = ['allowed_countries' => $countries];
         }
-        if (trim($this->shippingRateId) !== '') {
+        if ($order->getShippingCountry() === null && trim($this->shippingRateId) !== '') {
             $params['shipping_options'] = [['shipping_rate' => trim($this->shippingRateId)]];
         }
         if ($order->getDiscountCents() > 0) {

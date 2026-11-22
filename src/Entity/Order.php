@@ -50,6 +50,13 @@ class Order
     #[ORM\Column(options: ['default' => 0])]
     private int $giftCents = 0;
 
+    // Frais de port calculés par le site (centimes, inclus dans le total) et pays de livraison choisi au panier
+    #[ORM\Column(options: ['default' => 0])]
+    private int $shippingCents = 0;
+
+    #[ORM\Column(length: 2, nullable: true)]
+    private ?string $shippingCountry = null;
+
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(onDelete: 'SET NULL')]
     private ?User $user = null;
@@ -125,6 +132,9 @@ class Order
     public function setItems(array $items): static { $this->items = array_values($items); return $this; }
     public function getTotalCents(): int { return $this->totalCents; }
     public function setTotalCents(int $cents): static { $this->totalCents = $cents; return $this; }
+    public function getShippingCents(): int { return $this->shippingCents; }
+    public function getShippingCountry(): ?string { return $this->shippingCountry; }
+    public function setShippingCost(int $cents, ?string $country): static { $this->shippingCents = $cents; $this->shippingCountry = $country; return $this; }
     public function getPromoCode(): ?string { return $this->promoCode; }
     public function getPromoCents(): int { return $this->promoCents; }
     public function getGiftCode(): ?string { return $this->giftCode; }
@@ -196,6 +206,7 @@ class Order
             'date' => $this->createdAt->format(\DATE_ATOM),
             'status' => $this->status->value,
             'total' => Money::fromCents($this->totalCents),
+            'shippingCost' => $this->shippingCountry === null ? null : ['amount' => Money::fromCents($this->shippingCents), 'country' => $this->shippingCountry],
             'discount' => $this->getDiscountCents() === 0 ? null : [
                 'promoCode' => $this->promoCode, 'promo' => Money::fromCents($this->promoCents),
                 'giftCode' => $this->giftCode === null ? null : substr($this->giftCode, 0, 4).'…'.substr($this->giftCode, -4), 'gift' => Money::fromCents($this->giftCents),

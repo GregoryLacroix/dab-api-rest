@@ -4,6 +4,7 @@ namespace App\Service;
 
 use App\Entity\ContactMessage;
 use App\Entity\GiftCard;
+use App\Entity\Product;
 use App\Entity\Order;
 use App\Entity\QuoteRequest;
 use App\Entity\Review;
@@ -96,6 +97,11 @@ final class AppMailer
                 $html .= '<tr><td style="padding:4px 12px 4px 0">'.$this->e($label).'</td><td style="text-align:right">− '.$this->eur($cents / 100).'</td></tr>';
                 $text .= "- $label : -".$this->eur($cents / 100)."\n";
             }
+        }
+        if ($order->getShippingCountry() !== null) {
+            $price = $order->getShippingCents() > 0 ? $this->eur($order->getShippingCents() / 100) : 'offerte';
+            $html .= '<tr><td style="padding:4px 12px 4px 0">Livraison</td><td style="text-align:right">'.$price.'</td></tr>';
+            $text .= "- Livraison : $price\n";
         }
 
         return [$html, $text];
@@ -273,6 +279,25 @@ final class AppMailer
             .($address === [] ? '' : "\nAdresse de livraison :\n".implode("\n", $address)."\n");
 
         return $this->send($order->getCustomerEmail(), $order->getCustomerName(), 'Votre commande '.$order->getReference().' est expédiée', $text, $html);
+    }
+
+    // Produit de nouveau disponible : e-mail unique à la personne inscrite à l'alerte « prévenez-moi »
+    public function sendBackInStock(Product $product, string $to, string $lang): bool
+    {
+        $en = $lang === 'en';
+        $nameEn = $product->translations()['en']['name'] ?? null;
+        $name = $en && $nameEn ? $nameEn : $product->getName();
+        $url = rtrim($this->frontendUrl, '/').($en ? '/en/shop/' : '/produits/').$product->getId();
+        $title = $en ? 'Good news: it’s back!' : 'Bonne nouvelle : il est de retour !';
+        $intro = $en ? '<p><strong>'.$this->e($name).'</strong> is available again. Pieces are hand-painted in very small quantities, so don’t wait too long.</p>'
+            : '<p><strong>'.$this->e($name).'</strong> est de nouveau disponible. Les pièces sont peintes à la main en très petite quantité : ne tardez pas trop.</p>';
+        $cta = $en ? 'See the product' : 'Voir le produit';
+        $note = $en ? 'You are receiving this single e-mail because you asked to be notified. We have not kept your address for this alert.'
+            : 'Vous recevez ce seul e-mail parce que vous avez demandé à être prévenu(e). Nous n’avons pas conservé votre adresse pour cette alerte.';
+        $html = $this->layout($title, $intro.'<p style="margin:24px 0"><a href="'.$this->e($url).'" style="background:#0f2a6b;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:600">'.$cta.'</a></p><p style="font-size:13px;color:#6b5f50">'.$note.'</p>');
+        $text = "$name\n$url\n\n$note\n";
+
+        return $this->send($to, $to, ($en ? 'Back in stock: ' : 'De retour en stock : ').$name, $text, $html);
     }
 
     // Nouvel avis à modérer : prévient la boutique
