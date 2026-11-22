@@ -25,6 +25,15 @@ final class SiteContent
         ],
         // Galet de l'accueil : « animation » (galet qui se peint au scroll) ou « photos » (une photo par étape, dans la même forme de galet)
         'storyView' => ['mode' => 'animation', 'images' => ['', '', '']],
+        // Page « À propos » : masquée tant qu'elle n'est pas activée dans le back-office (texte de départ à personnaliser avec votre histoire)
+        'about' => [
+            'enabled' => false,
+            'title' => 'À propos', 'lead' => 'Des galets et des murs peints à la main, un par un.',
+            'text' => "Chaque galet est peint à la main à l’acrylique, puis verni pour durer. Chaque pièce est unique.\n\nLes fresques murales sont pensées pour votre mur : on échange sur votre projet, puis je peins sur place.",
+            'titleEn' => 'About', 'leadEn' => 'Pebbles and walls painted by hand, one at a time.',
+            'textEn' => "Every pebble is hand-painted in acrylic, then varnished to last. Every piece is unique.\n\nMurals are designed for your wall: we talk about your project, then I paint on site.",
+            'image' => '', 'signature' => '',
+        ],
         'slider' => ['enabled' => true, 'mode' => 'auto', 'count' => 5, 'delay' => 5, 'productIds' => []],
         'latest' => ['title' => 'Les dernières créations', 'count' => 3],
         // Zoom des photos sur la fiche produit : loupe à la souris (on/off, grossissement) et grossissement en plein écran
@@ -170,6 +179,13 @@ final class SiteContent
                 new Assert\Count(exactly: 3, exactMessage: 'Les 3 étapes sont obligatoires.'),
                 new Assert\All(constraints: [new Assert\Collection(fields: ['title' => $text(80), 'text' => $text(300)], extraFieldsMessage: $extra, missingFieldsMessage: $missing)]),
             ],
+            'about' => new Assert\Collection(fields: [
+                'enabled' => new Assert\Type('bool', message: 'Booléen attendu.'),
+                'title' => $text(80), 'lead' => $opt(300), 'text' => $opt(5000),
+                'titleEn' => $opt(80), 'leadEn' => $opt(300), 'textEn' => $opt(5000),
+                'image' => [new Assert\Type('string', message: 'Texte attendu.'), new Assert\Regex(pattern: '~^(https?://\S{1,480})?$~', message: 'Adresse de photo invalide.')],
+                'signature' => $opt(80),
+            ], extraFieldsMessage: $extra, missingFieldsMessage: $missing),
             'storyView' => new Assert\Collection(fields: [
                 'mode' => new Assert\Choice(choices: ['animation', 'photos'], message: 'Mode invalide (animation ou photos).'),
                 'images' => [

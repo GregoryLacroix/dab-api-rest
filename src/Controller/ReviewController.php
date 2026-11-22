@@ -52,6 +52,21 @@ final class ReviewController extends ApiController
         return new JsonResponse($payload, 200, ['Cache-Control' => 'public, max-age=60']);
     }
 
+    // Public : meilleurs avis récents pour l'accueil + note moyenne de la boutique : { data: [{ …avis, productId, productName }], summary: { average, count } }
+    #[Route('/reviews/featured', name: 'api_reviews_featured', methods: ['GET'])]
+    public function featured(): JsonResponse
+    {
+        $data = array_map(
+            static fn (Review $r) => $r->toPublicArray() + [
+                'productId' => $r->getProduct()->getId(), 'productName' => $r->getProduct()->getName(),
+                'productNameEn' => $r->getProduct()->translations()['en']['name'] ?? null,
+            ],
+            $this->reviews->featured(6),
+        );
+
+        return new JsonResponse(['data' => $data, 'summary' => $this->reviews->globalSummary()], 200, ['Cache-Control' => 'public, max-age=300']);
+    }
+
     // Connecté : puis-je donner mon avis sur ce produit ? { eligible, reason: purchase|already|null, review }
     #[Route('/products/{id}/reviews/mine', name: 'api_reviews_mine', requirements: ['id' => '\d+'], methods: ['GET'])]
     #[IsGranted('IS_AUTHENTICATED_FULLY')]

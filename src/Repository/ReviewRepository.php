@@ -44,6 +44,24 @@ class ReviewRepository extends ServiceEntityRepository
         return ['average' => $count > 0 ? round($sum / $count, 1) : null, 'count' => $count, 'distribution' => $dist];
     }
 
+    /** Avis à mettre en avant sur l'accueil : publiés, 4 étoiles ou plus, les plus récents d'abord (produit encore en vente) */
+    public function featured(int $limit): array
+    {
+        return $this->createQueryBuilder('r')->join('r.product', 'p')
+            ->where('r.status = :s')->andWhere('r.rating >= 4')->andWhere('p.published = true')
+            ->setParameter('s', ReviewStatus::Approved->value)->orderBy('r.id', 'DESC')->setMaxResults($limit)->getQuery()->getResult();
+    }
+
+    /** @return array{average: float|null, count: int} note moyenne de tous les avis publiés */
+    public function globalSummary(): array
+    {
+        $row = $this->createQueryBuilder('r')->select('COUNT(r.id) AS n, AVG(r.rating) AS avg')
+            ->where('r.status = :s')->setParameter('s', ReviewStatus::Approved->value)->getQuery()->getSingleResult();
+        $count = (int) $row['n'];
+
+        return ['average' => $count > 0 ? round((float) $row['avg'], 1) : null, 'count' => $count];
+    }
+
     public function findOneByUserAndProduct(User $user, Product $product): ?Review
     {
         return $this->findOneBy(['user' => $user, 'product' => $product]);

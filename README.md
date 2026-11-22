@@ -330,3 +330,7 @@ Clés : `name`, `email`, `password`, `confirm` (inscription) · `name`, `email`,
 - Derrière un proxy/CDN : déclarez-le (`framework.trusted_proxies`) pour que les limites par IP voient la vraie adresse.
 - Servez `public/uploads/` en fichiers statiques et sauvegardez-le avec la base.
 - Pas de réinitialisation de mot de passe dans cette version.
+
+## Avis à la une et page « À propos »
+- `GET /api/reviews/featured` : jusqu'à 6 avis approuvés (note ≥ 4, produit publié) + `summary {average,count}`.
+- Clé de contenu `about` (Setting) : `enabled`, `title/lead/text` (+ `En`), `image`, `signature`. Aucune migration SQL nécessaire ; faire `cache:clear`.
