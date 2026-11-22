@@ -25,6 +25,16 @@ final class SiteContent
         ],
         // Galet de l'accueil : « animation » (galet qui se peint au scroll) ou « photos » (une photo par étape, dans la même forme de galet)
         'storyView' => ['mode' => 'animation', 'images' => ['', '', '']],
+        // Bandeau de réassurance (accueil) et liste courte (fiche produit) : 4 éléments ; un titre vide masque l'élément
+        'trust' => [
+            'enabled' => true,
+            'items' => [
+                ['icon' => 'hand', 'title' => 'Peint à la main', 'text' => 'Chaque pièce est unique', 'titleEn' => 'Hand-painted', 'textEn' => 'Every piece is unique'],
+                ['icon' => 'varnish', 'title' => 'Vernis protecteur', 'text' => 'Une peinture faite pour durer', 'titleEn' => 'Protective varnish', 'textEn' => 'Paint made to last'],
+                ['icon' => 'ship', 'title' => 'Expédition soignée', 'text' => 'Colis protégé, suivi par e-mail', 'titleEn' => 'Careful shipping', 'textEn' => 'Protected parcel, tracked by e-mail'],
+                ['icon' => 'pay', 'title' => 'Paiement sécurisé', 'text' => 'Par carte, via Stripe', 'titleEn' => 'Secure payment', 'textEn' => 'By card, through Stripe'],
+            ],
+        ],
         // Page « À propos » : masquée tant qu'elle n'est pas activée dans le back-office (texte de départ à personnaliser avec votre histoire)
         'about' => [
             'enabled' => false,
@@ -179,6 +189,17 @@ final class SiteContent
                 new Assert\Count(exactly: 3, exactMessage: 'Les 3 étapes sont obligatoires.'),
                 new Assert\All(constraints: [new Assert\Collection(fields: ['title' => $text(80), 'text' => $text(300)], extraFieldsMessage: $extra, missingFieldsMessage: $missing)]),
             ],
+            'trust' => new Assert\Collection(fields: [
+                'enabled' => new Assert\Type('bool', message: 'Booléen attendu.'),
+                'items' => [
+                    new Assert\Type('array', message: 'Liste attendue.'),
+                    new Assert\Count(exactly: 4, exactMessage: 'Les 4 éléments sont attendus (titre vide = masqué).'),
+                    new Assert\All(constraints: [new Assert\Collection(fields: [
+                        'icon' => new Assert\Choice(choices: ['hand', 'varnish', 'ship', 'pay'], message: 'Icône invalide.'),
+                        'title' => $opt(60), 'text' => $opt(120), 'titleEn' => $opt(60), 'textEn' => $opt(120),
+                    ], extraFieldsMessage: $extra, missingFieldsMessage: $missing)]),
+                ],
+            ], extraFieldsMessage: $extra, missingFieldsMessage: $missing),
             'about' => new Assert\Collection(fields: [
                 'enabled' => new Assert\Type('bool', message: 'Booléen attendu.'),
                 'title' => $text(80), 'lead' => $opt(300), 'text' => $opt(5000),
