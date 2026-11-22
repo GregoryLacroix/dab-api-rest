@@ -335,3 +335,6 @@ Clés : `name`, `email`, `password`, `confirm` (inscription) · `name`, `email`,
 - `GET /api/reviews/featured` : jusqu'à 6 avis approuvés (note ≥ 4, produit publié) + `summary {average,count}`.
 - Clé de contenu `about` (Setting) : `enabled`, `title/lead/text` (+ `En`), `image`, `signature`. Aucune migration SQL nécessaire ; faire `cache:clear`.
 - Clé de contenu `trust` : `enabled`, `items` (exactement 4 : `icon` hand|varnish|ship|pay, `title`, `text`, `titleEn`, `textEn`).
+
+## Recherche et tri des produits
+`GET /api/products` accepte `q` (nom FR/EN + description), `sort` = `new` | `price_asc` | `price_desc` (défaut : plus ancien d'abord) et `available=1` (stock > 0), en plus de `category`, `page`, `perPage`.

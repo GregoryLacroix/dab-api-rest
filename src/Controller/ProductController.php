@@ -36,7 +36,7 @@ final class ProductController extends ApiController
 
     /**
      * Visiteurs : uniquement les produits publiés. Administrateur : tous (filtre ?published=1|0).
-     * Filtres : ?category=galets &q=vague &page=1 &perPage=4 (scroll infini : page suivante tant que page < meta.pageCount)
+     * Filtres : ?category=galets &q=vague &sort=new|price_asc|price_desc &available=1 &page=1 &perPage=4 (scroll infini : page suivante tant que page < meta.pageCount)
      */
     #[Route('', name: 'api_products_index', methods: ['GET'])]
     public function index(Request $request): JsonResponse
@@ -46,7 +46,11 @@ final class ProductController extends ApiController
             $raw = $request->query->get('published');
             $published = ($raw === null || $raw === '') ? null : filter_var($raw, FILTER_VALIDATE_BOOLEAN);
         }
-        $qb = $this->products->search($request->query->get('category'), $request->query->get('q'), $published);
+        $sort = $request->query->get('sort');
+        $qb = $this->products->search($request->query->get('category'), $request->query->get('q'), $published, [
+            'sort' => in_array($sort, ['new', 'price_asc', 'price_desc'], true) ? $sort : null,
+            'available' => filter_var($request->query->get('available'), FILTER_VALIDATE_BOOLEAN),
+        ]);
 
         return $this->paginate($qb, $request, fn (Product $p) => $p->toArray(), 12);
     }
