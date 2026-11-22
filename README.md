@@ -262,6 +262,8 @@ Pensez à relire les CGV (article 13 ajouté côté React) et à vérifier la du
 
 **FAQ** (`Faq`) : `GET /api/faq` (public), `/api/admin/faq` (CRUD), FR/EN, balisage schema.org `FAQPage`.
 
+**Galet de l'accueil** : le contenu du site accepte `storyView` { mode: `animation` | `photos`, images: [3 adresses ou vides] } (`SiteContent`). Rien à changer en base : une valeur par défaut est utilisée tant qu'il n'est pas enregistré.
+
 ## Mise à jour de la base (caractéristiques, avis)
 `php bin/console doctrine:schema:update --force --env=prod` ajoute les colonnes `product.size_label`, `width_cm`, `height_cm`, `depth_cm`, `weight_g` et la table `review`. Puis `php bin/console cache:clear --env=prod`. Les produits existants gardent des caractéristiques vides.
 

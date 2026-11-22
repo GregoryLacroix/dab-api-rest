@@ -23,6 +23,8 @@ final class SiteContent
             ['title' => 'La mer prend forme', 'text' => 'À l’acrylique, couche après couche, la vague et l’horizon apparaissent.'],
             ['title' => 'Le vernis', 'text' => 'Un vernis brillant protège la peinture. Votre galet est prêt à vivre chez vous.'],
         ],
+        // Galet de l'accueil : « animation » (galet qui se peint au scroll) ou « photos » (une photo par étape, dans la même forme de galet)
+        'storyView' => ['mode' => 'animation', 'images' => ['', '', '']],
         'slider' => ['enabled' => true, 'mode' => 'auto', 'count' => 5, 'delay' => 5, 'productIds' => []],
         'latest' => ['title' => 'Les dernières créations', 'count' => 3],
         // Zoom des photos sur la fiche produit : loupe à la souris (on/off, grossissement) et grossissement en plein écran
@@ -168,6 +170,17 @@ final class SiteContent
                 new Assert\Count(exactly: 3, exactMessage: 'Les 3 étapes sont obligatoires.'),
                 new Assert\All(constraints: [new Assert\Collection(fields: ['title' => $text(80), 'text' => $text(300)], extraFieldsMessage: $extra, missingFieldsMessage: $missing)]),
             ],
+            'storyView' => new Assert\Collection(fields: [
+                'mode' => new Assert\Choice(choices: ['animation', 'photos'], message: 'Mode invalide (animation ou photos).'),
+                'images' => [
+                    new Assert\Type('array', message: 'Liste attendue.'),
+                    new Assert\Count(exactly: 3, exactMessage: 'Une photo (ou vide) par étape : 3 au total.'),
+                    new Assert\All(constraints: [
+                        new Assert\Type('string', message: 'Texte attendu.'),
+                        new Assert\Regex(pattern: '~^(https?://\S{1,480})?$~', message: 'Adresse de photo invalide.'),
+                    ]),
+                ],
+            ], extraFieldsMessage: $extra, missingFieldsMessage: $missing),
             'slider' => new Assert\Collection(fields: [
                 'enabled' => new Assert\Type('bool', message: 'Booléen attendu.'),
                 'mode' => new Assert\Choice(choices: ['auto', 'manual'], message: 'Mode invalide (auto ou manual).'),
