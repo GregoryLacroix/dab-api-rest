@@ -338,3 +338,6 @@ Clés : `name`, `email`, `password`, `confirm` (inscription) · `name`, `email`,
 
 ## Recherche et tri des produits
 `GET /api/products` accepte `q` (nom FR/EN + description), `sort` = `new` | `price_asc` | `price_desc` (défaut : plus ancien d'abord) et `available=1` (stock > 0), en plus de `category`, `page`, `perPage`.
+
+## Option « Devis »
+Clé de contenu `features.quotes` (booléen, défaut `true`). À `false`, `POST /api/quotes` répond 404 « Les demandes de devis ne sont pas ouvertes pour le moment. » ; les devis existants (lien de paiement, back-office) ne sont pas touchés.

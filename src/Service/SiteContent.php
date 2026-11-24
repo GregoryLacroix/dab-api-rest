@@ -25,6 +25,8 @@ final class SiteContent
         ],
         // Galet de l'accueil : « animation » (galet qui se peint au scroll) ou « photos » (une photo par étape, dans la même forme de galet)
         'storyView' => ['mode' => 'animation', 'images' => ['', '', '']],
+        // Fonctionnalités activables : demandes de devis (page « Demander un devis », boutons et formulaire)
+        'features' => ['quotes' => true],
         // Bandeau de réassurance (accueil) et liste courte (fiche produit) : 4 éléments ; un titre vide masque l'élément
         'trust' => [
             'enabled' => true,
@@ -206,6 +208,9 @@ final class SiteContent
                 'titleEn' => $opt(80), 'leadEn' => $opt(300), 'textEn' => $opt(5000),
                 'image' => [new Assert\Type('string', message: 'Texte attendu.'), new Assert\Regex(pattern: '~^(https?://\S{1,480})?$~', message: 'Adresse de photo invalide.')],
                 'signature' => $opt(80),
+            ], extraFieldsMessage: $extra, missingFieldsMessage: $missing),
+            'features' => new Assert\Collection(fields: [
+                'quotes' => new Assert\Type('bool', message: 'Booléen attendu.'),
             ], extraFieldsMessage: $extra, missingFieldsMessage: $missing),
             'storyView' => new Assert\Collection(fields: [
                 'mode' => new Assert\Choice(choices: ['animation', 'photos'], message: 'Mode invalide (animation ou photos).'),

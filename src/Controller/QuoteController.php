@@ -9,6 +9,7 @@ use App\Repository\QuoteRequestRepository;
 use App\Service\ApiValidator;
 use App\Service\AppMailer;
 use App\Service\QuoteService;
+use App\Service\SiteContent;
 use App\Service\StripeGateway;
 use App\Service\ValidationFailedException;
 use Doctrine\ORM\EntityManagerInterface;
@@ -18,6 +19,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
@@ -34,6 +36,7 @@ final class QuoteController extends ApiController
         private readonly QuoteService $service,
         private readonly AppMailer $mailer,
         private readonly StripeGateway $stripe,
+        private readonly SiteContent $content,
         #[Autowire(service: 'limiter.quote')] private readonly RateLimiterFactory $quoteLimiter,
         #[Autowire(service: 'limiter.order')] private readonly RateLimiterFactory $checkoutLimiter,
         #[Autowire('%env(CONTACT_EMAIL)%')] private readonly string $shopEmail,
@@ -46,6 +49,10 @@ final class QuoteController extends ApiController
     #[Route('', name: 'api_quotes_create', methods: ['POST'])]
     public function create(Request $request): JsonResponse
     {
+        // Option du back-office (Contenu du site > Fonctionnalités) : demandes de devis fermées
+        if (!($this->content->get()['features']['quotes'] ?? true)) {
+            throw new HttpException(404, 'Les demandes de devis ne sont pas ouvertes pour le moment.');
+        }
         $this->throttle($this->quoteLimiter, $request->getClientIp() ?? 'unknown');
 
         $input = QuoteInput::fromArray($request->request->all());
